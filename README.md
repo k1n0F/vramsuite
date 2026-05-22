@@ -18,18 +18,18 @@ Local AI tools like ComfyUI, Diffusers and custom PyTorch scripts often fail bec
 
 A GPU can have 16 GB of VRAM, but the real usable amount depends on many things:
 
-- PyTorch
-- CUDA
-- drivers
-- allocator settings
-- attention backend
-- model size
-- resolution
-- batch size
-- video frames
-- VAE decode
-- offload settings
-- custom nodes
+* PyTorch
+* CUDA
+* drivers
+* allocator settings
+* attention backend
+* model size
+* resolution
+* batch size
+* video frames
+* VAE decode
+* offload settings
+* custom nodes
 
 VRAM Suite is my attempt to make this behavior easier to measure, profile and understand.
 
@@ -41,10 +41,10 @@ VRAM Suite will use a few profile files:
 system.vramcard.json
   describes the GPU and runtime memory capability
 
-workflow_profile.json
+workflow\_profile.json
   describes how much memory a workflow used
 
-model_profile.json
+model\_profile.json
   future profile for model files like .safetensors
 ```
 
@@ -61,7 +61,7 @@ This repository currently contains the first project skeleton.
 Working command:
 
 ```bash
-uv run vramsuit doctor
+uv run vramsuite doctor
 ```
 
 Current output:
@@ -74,23 +74,23 @@ Next target: v0.1-alpha - system.vramcard generation
 
 ## Planned features
 
-- GPU and runtime fingerprint
-- `.vramcard` generation
-- safe VRAM probe
-- VRAM reader
-- workflow profiler
-- workflow analyzer
-- profile hashes
-- memory risk advisor
-- ComfyUI adapter
-- Diffusers adapter
-- `.safetensors` model inspector
-- future profile database
+* GPU and runtime fingerprint
+* `.vramcard` generation
+* safe VRAM probe
+* VRAM reader
+* workflow profiler
+* workflow analyzer
+* profile hashes
+* memory risk advisor
+* ComfyUI adapter
+* Diffusers adapter
+* `.safetensors` model inspector
+* future profile database
 
 ## Project structure
 
 ```text
-vramsuit/
+vramsuite/
   core/
   backends/
   workflow/
@@ -131,7 +131,7 @@ uv sync
 Run the CLI:
 
 ```bash
-uv run vramsuit doctor
+uv run vramsuite doctor
 ```
 
 Run tests:
@@ -165,3 +165,4 @@ Most files are placeholders right now. The first real milestone is `v0.1-alpha`.
 ## Author
 
 Created by **k1n0F**.
+

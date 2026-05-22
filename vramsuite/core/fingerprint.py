@@ -10,9 +10,8 @@ Planned for v0.1-alpha:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Any
-
 
 from vramsuite.core.runtime import collect_runtime_info, runtime_info_to_dict
 
@@ -26,6 +25,7 @@ class TorchInfo:
     device_count: int
     devices: list[dict[str, Any]]
 
+
 def collect_torch_info() -> TorchInfo:
     """Collect PyTorch/CUDA information if torch is installed."""
     try:
@@ -38,7 +38,7 @@ def collect_torch_info() -> TorchInfo:
             cuda_version=None,
             device_count=0,
             devices=[],
-            )
+        )
 
     cuda_available = bool(torch.cuda.is_available())
     devices: list[dict[str, Any]] = []
@@ -46,18 +46,18 @@ def collect_torch_info() -> TorchInfo:
     if cuda_available:
         for index in range(torch.cuda.device_count()):
             props = torch.cuda.get_device_properties(index)
+
             devices.append(
                 {
-                    "index":index,
-                    "name": props.major,
+                    "index": index,
+                    "name": props.name,
                     "total_vram_mb": int(props.total_memory // (1024 * 1024)),
                     "major": props.major,
                     "minor": props.minor,
                     "compute_capability": f"{props.major}.{props.minor}",
                     "multi_processor_count": props.multi_processor_count,
-                    }
-                
-                )
+                }
+            )
 
     return TorchInfo(
         available=True,
@@ -66,7 +66,8 @@ def collect_torch_info() -> TorchInfo:
         cuda_version=getattr(torch.version, "cuda", None),
         device_count=len(devices),
         devices=devices,
-        )
+    )
+
 
 def collect_fingerprint() -> dict[str, Any]:
     """Collect a basic VRAM Suite system fingerprint."""
@@ -76,4 +77,4 @@ def collect_fingerprint() -> dict[str, Any]:
     return {
         "runtime": runtime_info_to_dict(runtime),
         "torch": asdict(torch_info),
-        }
+    }

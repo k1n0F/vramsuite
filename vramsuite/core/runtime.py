@@ -38,7 +38,7 @@ def detect_wsl() -> bool:
     except Exception:
         return False
 
-def detection_container() -> bool:
+def detect_container() -> bool:
     """Best-effort container detection."""
     if os.path.exists("/.dockerenv"):
         return True
@@ -59,7 +59,7 @@ def collect_runtime_info() -> RuntimeInfo:
         python_version=sys.version.split()[0],
         python_executable=sys.executable,
         is_wsl=detect_wsl(),
-        is_container=detection_container(),
+        is_container=detect_container(),
     )
 
 
