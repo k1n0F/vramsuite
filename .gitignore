@@ -25,3 +25,5 @@ system.vramcard.json
 probe_result.json
 doctor_report.json
 workflow_profile.json
+*.vramcard.json
+.vramsuite/
