@@ -1,0 +1,32 @@
+[project]
+name = "vramsuit"
+version = "0.0.1"
+description = "Predictive GPU memory framework for AI inference workflows"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "k1n0F" }
+]
+license = { text = "TBD" }
+
+dependencies = [
+  "typer>=0.12",
+  "rich>=13",
+  "pydantic>=2"
+]
+
+[project.scripts]
+vramsuit = "vramsuit.cli.main:app"
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
