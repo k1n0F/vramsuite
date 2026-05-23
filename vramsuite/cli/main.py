@@ -6,7 +6,6 @@ Status:
 """
 
 from __future__ import annotations
-from turtle import title
 
 import typer
 
@@ -65,7 +64,7 @@ def doctor(
 
     console.print(table)
 
-    torch_table = Table(title="PyTorch / Cuda")
+    torch_table = Table(title="PyTorch / CUDA")
     torch_table.add_column("Field", style="bold")
     torch_table.add_column("Value")
 
@@ -77,7 +76,7 @@ def doctor(
 
     console.print(torch_table)
 
-    nvml_table = Table(title= "NVML / Driver Memory")
+    nvml_table = Table(title="NVML / Driver Memory")
     nvml_table.add_column("Field")
     nvml_table.add_column("Value")
 
@@ -107,14 +106,14 @@ def doctor(
         console.print(gpu_table)
 
 
-    if torch_info["devices"]:
+    if torch_info.get["devices"]:
         gpu_table = Table(title="CUDA Devices")
         gpu_table.add_column("Index", style="bold")
         gpu_table.add_column("Name")
         gpu_table.add_column("VRAM MB")
         gpu_table.add_column("SM")
 
-        for device in torch_info["devices"]:
+        for device in torch_info.get("devices", []):
             gpu_table.add_row(
                 str(device["index"]),
                 str(device["name"]),
@@ -125,7 +124,7 @@ def doctor(
         console.print(gpu_table)
 
     if write_card:
-        path = save_vramcard("system.vramcard.json")
+        path = save_vramcard("system.vramcard.jsson")
         console.print(f"[green]Saved:[/green] {path}")
 
     console.print("[yellow]Next:[/yellow] v0.2-alpha safe allocation probe")
