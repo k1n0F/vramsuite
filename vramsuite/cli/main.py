@@ -6,6 +6,7 @@ Status:
 """
 
 from __future__ import annotations
+from turtle import title
 
 import typer
 
@@ -42,6 +43,7 @@ def doctor(
     fingerprint = collect_fingerprint()
     runtime = fingerprint["runtime"]
     torch_info = fingerprint["torch"]
+    nvml_info = fingerprint["nvml"]
 
     console.print(
         Panel.fit(
@@ -74,6 +76,36 @@ def doctor(
     torch_table.add_row("CUDA devices", str(torch_info["device_count"]))
 
     console.print(torch_table)
+
+    nvml_table = Table(title= "NVML / Driver Memory")
+    nvml_table.add_column("Field")
+    nvml_table.add_column("Value")
+
+    nvml_table.add_row("NVML available", str(nvml_info.get("available")))
+    nvml_table.add_row("NVML error", str(nvml_info.get("error")))
+    nvml_table.add_row("NVML devices", str(nvml_info.get("device_count")))
+
+    console.print(nvml_table)
+
+    if nvml_info.get("devices"):
+        gpu_table = Table(title="NVML Device")
+        gpu_table.add_column("Index")
+        gpu_table.add_column("Name")
+        gpu_table.add_column("Total VRAM MB")
+        gpu_table.add_column("Free VRAM MB")
+        gpu_table.add_column("Used VRAM MB")
+
+        for device in nvml_info["devices"]:
+            gpu_table.add_row(
+                str(device.get("index")),
+                str(device.get("name")),
+                str(device.get("total_vram_mb")),
+                str(device.get("free_vram_mb")),
+                str(device.get("used_vram_mb")),
+            )
+
+        console.print(gpu_table)
+
 
     if torch_info["devices"]:
         gpu_table = Table(title="CUDA Devices")
