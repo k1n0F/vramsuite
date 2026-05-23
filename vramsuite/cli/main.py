@@ -124,7 +124,7 @@ def doctor(
         console.print(gpu_table)
 
     if write_card:
-        path = save_vramcard("system.vramcard.jsson")
+        path = save_vramcard("system.vramcard.json")
         console.print(f"[green]Saved:[/green] {path}")
 
     console.print("[yellow]Next:[/yellow] v0.2-alpha safe allocation probe")
