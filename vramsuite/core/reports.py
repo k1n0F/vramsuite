@@ -173,3 +173,26 @@ def print_verbose_table(
     table.add_row("Python executable", str(runtime_info.get("python_executable")))
 
     console.print(table)
+
+def print_probe_table(console: Console, probe_info: dict[str, Any] | None) -> None:
+    """Print safe allocation probe results."""
+    if probe_info is None:
+        return
+    
+    table = Table(title="Safe Probe")
+    table.add_column("Field", style="bold")
+    table.add_column("Value")
+
+    table.add_row("Available", str(probe_info.get("available")))
+    table.add_row("Backend", str(probe_info.get("backend")))
+    table.add_row("Attempted MB", str(probe_info.get("attempted_mb")))
+    table.add_row("Allocated MB", str(probe_info.get("allocated_mb")))
+    table.add_row("Safe Allocatable MB", str(probe_info.get("safe_allocatable_mb")))
+    table.add_row("Safety Margin MB", str(probe_info.get("safety_margin_mb")))
+    table.add_row("Error", str(probe_info.get("error")))
+
+    notes = probe_info.get("notes") or []
+    if notes:
+        table.add_row("Notes", " | ".join(str(note) for note in notes))
+
+    console.print(table)

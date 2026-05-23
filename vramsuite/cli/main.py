@@ -26,6 +26,7 @@ from vramsuite.core.reports import (
     print_torch_table,
     print_verbose_table,
     print_vramcard_memory_table,
+    print_probe_table,
 )
 
 app = typer.Typer(
@@ -66,15 +67,42 @@ def doctor(
         "-v",
         help="Show detailed diagnostic information.",
     ),
+    probe: bool = typer.Option(
+        False,
+        "--probe",
+        help="Run a bounded CUDA allocation probe.",
+    ),
+    probe_max_mb: int = typer.Option(
+        1024,
+        "--probe-max-mb",
+        help="Maximum amount of VRAM to probe.",
+    ),
+    probe_step_mb: int = typer.Option(
+        128,
+        "--probe-step-mb",
+        help="Allocation step size for the probe.",
+    ),
+    probe_free_floor_mb: int = typer.Option(
+        2048,
+        "--probe-free-floor-mb",
+        help="Minimum free driver VRAM to leave untouched.",
+
+    ),
 ) -> None:
     """Show basic VRAM Suite diagnostic information."""
-    doctor_results = run_doctor()
+    doctor_results = run_doctor(
+        with_probe=probe,
+        probe_max_mb=probe_max_mb,
+        probe_step_mb=probe_step_mb,
+        probe_floor_mb=probe_free_floor_mb,
+    )
 
     runtime = doctor_results["runtime"]
     torch_info = doctor_results["torch"]
     nvml_info = doctor_results["nvml"]
     vramcard = doctor_results["vramcard"]
     memory_info = doctor_results["memory"]
+    probe_info = doctor_results.get("probe")
 
 
     print_doctor_header(console)
@@ -83,6 +111,7 @@ def doctor(
     print_nvml_table(console, nvml_info)
     print_nvml_devices_table(console, nvml_info)
     print_vramcard_memory_table(console, memory_info)
+    print_probe_table(console, probe_info)
     print_cuda_devices_table(console, torch_info)
 
     if verbose:

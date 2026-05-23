@@ -12,8 +12,14 @@ from typing import Any
 
 from vramsuite.core.fingerprint import collect_fingerprint
 from vramsuite.core.vramcard import create_vramcard
+from vramsuite.core.probe import probe_result_to_dict, run_torch_cuda_probe
 
-def run_doctor() -> dict[str, Any]:
+def run_doctor(
+        with_probe: bool = False,
+        probe_max_mb: int = 1024,
+        probe_step_mb: int = 128,
+        probe_floor_mb: int = 2048,
+) -> dict[str, Any]:
     """
     Run VRAM Suite doctor diagnostics and return structured data.
 
@@ -39,6 +45,25 @@ def run_doctor() -> dict[str, Any]:
     nvml_info = fingerprint.get("nvml", {})
     gpu_info = vramcard.get("gpu", {})
     memory_info = vramcard.get("memory", {})
+
+    probe_info: dict[str, Any] | None = None
+
+    if with_probe:
+        probe_result = run_torch_cuda_probe(
+            driver_free_mb=memory_info.get("driver_free_at_scan_mb"),
+            max_probe_mb=probe_max_mb,
+            step_mb=probe_step_mb,
+            hard_free_floor_mb=probe_floor_mb,
+        )
+
+        probe_info = probe_result_to_dict(probe_result)
+
+        memory_info["proccess_allocatable_mb"] = probe_info.get("allocated_mb")
+        memory_info["safe_allocatable_mb"] = probe_info.get("safe_allocatable_mb")
+        memory_info["safety_margin_mb"] = probe_info.get("safety_margin_mb")
+
+        vramcard["memory"] = memory_info
+        vramcard["probe"] = probe_info
     
     return {
             "fingerprint": fingerprint,
@@ -48,4 +73,5 @@ def run_doctor() -> dict[str, Any]:
             "nvml": nvml_info,
             "gpu": gpu_info,
             "memory": memory_info,
+            "probe": probe_info,
         }
