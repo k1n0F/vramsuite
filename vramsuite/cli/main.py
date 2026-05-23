@@ -14,7 +14,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from vramsuite.core.fingerprint import collect_fingerprint
-from vramsuite.core.vramcard import save_vramcard
+from vramsuite.core.vramcard import create_vramcard, save_vramcard
 
 app = typer.Typer(
     help="VRAM Suite CLI",
@@ -43,6 +43,10 @@ def doctor(
     runtime = fingerprint["runtime"]
     torch_info = fingerprint["torch"]
     nvml_info = fingerprint["nvml"]
+    
+    vramcard = create_vramcard()
+    memory_info = vramcard["memory"]
+
 
     console.print(
         Panel.fit(
@@ -104,6 +108,21 @@ def doctor(
             )
 
         console.print(gpu_table)
+
+
+    memory_table = Table(title="VRAMCard Memory")
+    memory_table.add_column("Field", style="bold")
+    memory_table.add_column("Value")
+
+    memory_table.add_row("Driver total MB", str(memory_info.get("driver_total_mb")))
+    memory_table.add_row("Driver free at scan MB", str(memory_info.get("driver_free_at_scan_mb")))
+    memory_table.add_row("Driver used at scan MB", str(memory_info.get("driver_used_at_scan_mb")))
+    memory_table.add_row("Process allocatable MB", str(memory_info.get("process_allocatable_mb")))
+    memory_table.add_row("Safe allocatable MB", str(memory_info.get("safe_allocatable_mb")))
+    memory_table.add_row("Safety margin MB", str(memory_info.get("safety_margin_mb")))
+    memory_table.add_row("Source", str(memory_info.get("source")))
+
+    console.print(memory_table)
 
 
     if torch_info.get("devices"):
