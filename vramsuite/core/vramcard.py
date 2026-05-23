@@ -80,6 +80,15 @@ def _get_primary_gpu(
     nvml_gpu = _get_primary_nvml_gpu(nvml_info)
 
     if nvml_gpu is not None:
+        torch_gpu = _get_primary_torch_gpu(torch_info)
+        
+        if torch_gpu:
+            nvml_gpu.update({
+                "compute_capability": torch_gpu.get("compute_capability"),
+                "major": torch_gpu.get("major"),
+                "minor": torch_gpu.get("minor"),
+                "multi_processor_count": torch_gpu.get("multi_processor_count"),
+            })
         return nvml_gpu
 
     torch_gpu = _get_primary_torch_gpu(torch_info)

@@ -19,7 +19,7 @@ from vramsuite.core.vramcard import create_vramcard, save_vramcard
 app = typer.Typer(
     help="VRAM Suite CLI",
     no_args_is_help=True,
-    )
+)
 
 console = Console()
 
