@@ -179,10 +179,10 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
 
 
 def save_vramcard(
-        path: str | Path = "system.vramcard.json",
-        card: dict[str, Any] | None = None,
+    path: str | Path = "system.vramcard.json",
+    card: dict[str, Any] | None = None,
 ) -> Path:
-    """Create and save system.vramcard.json."""
+    """Save a .vramcard JSON file."""
     output_path = Path(path)
 
     if card is None:

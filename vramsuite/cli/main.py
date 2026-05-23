@@ -6,14 +6,15 @@ Status:
 """
 
 from __future__ import annotations
+
 import json
 from pathlib import Path
 
 import typer
 from rich.console import Console
 
-from vramsuite.core.fingerprint import collect_fingerprint
-from vramsuite.core.vramcard import create_vramcard, save_vramcard
+from vramsuite.core.doctor import run_doctor
+from vramsuite.core.vramcard import save_vramcard
 
 
 from vramsuite.core.reports import (
@@ -67,13 +68,14 @@ def doctor(
     ),
 ) -> None:
     """Show basic VRAM Suite diagnostic information."""
-    fingerprint = collect_fingerprint()
-    runtime = fingerprint["runtime"]
-    torch_info = fingerprint["torch"]
-    nvml_info = fingerprint["nvml"]
+    doctor_results = run_doctor()
 
-    vramcard = create_vramcard(fingerprint=fingerprint)
-    memory_info = vramcard["memory"]
+    runtime = doctor_results["runtime"]
+    torch_info = doctor_results["torch"]
+    nvml_info = doctor_results["nvml"]
+    vramcard = doctor_results["vramcard"]
+    memory_info = doctor_results["memory"]
+
 
     print_doctor_header(console)
     print_runtime_table(console, runtime)
