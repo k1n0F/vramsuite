@@ -11,11 +11,21 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 
 from vramsuite.core.fingerprint import collect_fingerprint
 from vramsuite.core.vramcard import create_vramcard, save_vramcard
+
+
+from vramsuite.core.reports import (
+    print_cuda_devices_table,
+    print_doctor_header,
+    print_nvml_devices_table,
+    print_nvml_table,
+    print_runtime_table,
+    print_torch_table,
+    print_verbose_table,
+    print_vramcard_memory_table,
+)
 
 app = typer.Typer(
     help="VRAM Suite CLI",
@@ -33,148 +43,48 @@ def main() -> None:
 
 @app.command()
 def doctor(
-    write_card: bool = typer.Option (
+    write_card: bool = typer.Option(
         True,
         "--write-card/--no-write-card",
         help="Write a .vramcard JSON file.",
-     ),
-     output: Path = typer.Option(
+    ),
+    output: Path = typer.Option(
         Path("system.vramcard.json"),
         "--output",
         "-o",
         help="Output path for .vramcard JSON file.",
-     ),
-     json_output: bool = typer.Option(
+    ),
+    json_output: bool = typer.Option(
         False,
         "--json",
         help="Print the generated .vramcard JSON to stdout.",
-     ),
-     verbose: bool = typer.Option(
+    ),
+    verbose: bool = typer.Option(
         False,
         "--verbose",
         "-v",
         help="Show detailed diagnostic information.",
-     ),
+    ),
 ) -> None:
-    
-
     """Show basic VRAM Suite diagnostic information."""
     fingerprint = collect_fingerprint()
     runtime = fingerprint["runtime"]
     torch_info = fingerprint["torch"]
     nvml_info = fingerprint["nvml"]
-    
+
     vramcard = create_vramcard(fingerprint=fingerprint)
     memory_info = vramcard["memory"]
 
-
-    console.print(
-        Panel.fit(
-            "[bold cyan]VRAM Suite Doctor[/bold cyan]\n"
-            "Status: pre-alpha / v0.1-alpha foundation",
-            border_style="cyan",
-            )
-        )
-
-    table = Table(title="Runtime")
-    table.add_column("Field", style="bold")
-    table.add_column("Value")
-
-    table.add_row("OS", str(runtime["os_name"]))
-    table.add_row("Platform", str(runtime["platform"]))
-    table.add_row("Python", str(runtime["python_version"]))
-    table.add_row("WSL", str(runtime["is_wsl"]))
-    table.add_row("Container", str(runtime["is_container"]))
-
-    console.print(table)
-
-    torch_table = Table(title="PyTorch / CUDA")
-    torch_table.add_column("Field", style="bold")
-    torch_table.add_column("Value")
-
-    torch_table.add_row("Torch available", str(torch_info["available"]))
-    torch_table.add_row("Torch version", str(torch_info["version"]))
-    torch_table.add_row("CUDA available", str(torch_info["cuda_available"]))
-    torch_table.add_row("Torch CUDA", str(torch_info["cuda_version"]))
-    torch_table.add_row("CUDA devices", str(torch_info["device_count"]))
-
-    console.print(torch_table)
-
-    nvml_table = Table(title="NVML / Driver Memory")
-    nvml_table.add_column("Field")
-    nvml_table.add_column("Value")
-
-    nvml_table.add_row("NVML available", str(nvml_info.get("available")))
-    nvml_table.add_row("NVML error", str(nvml_info.get("error")))
-    nvml_table.add_row("NVML devices", str(nvml_info.get("device_count")))
-
-    console.print(nvml_table)
-
-    if nvml_info.get("devices"):
-        gpu_table = Table(title="NVML Device")
-        gpu_table.add_column("Index")
-        gpu_table.add_column("Name")
-        gpu_table.add_column("Total VRAM MB")
-        gpu_table.add_column("Free VRAM MB")
-        gpu_table.add_column("Used VRAM MB")
-
-        for device in nvml_info["devices"]:
-            gpu_table.add_row(
-                str(device.get("index")),
-                str(device.get("name")),
-                str(device.get("total_vram_mb")),
-                str(device.get("free_vram_mb")),
-                str(device.get("used_vram_mb")),
-            )
-
-        console.print(gpu_table)
-
-
-    memory_table = Table(title="VRAMCard Memory")
-    memory_table.add_column("Field", style="bold")
-    memory_table.add_column("Value")
-
-    memory_table.add_row("Driver total MB", str(memory_info.get("driver_total_mb")))
-    memory_table.add_row("Driver free at scan MB", str(memory_info.get("driver_free_at_scan_mb")))
-    memory_table.add_row("Driver used at scan MB", str(memory_info.get("driver_used_at_scan_mb")))
-    memory_table.add_row("Process allocatable MB", str(memory_info.get("process_allocatable_mb")))
-    memory_table.add_row("Safe allocatable MB", str(memory_info.get("safe_allocatable_mb")))
-    memory_table.add_row("Safety margin MB", str(memory_info.get("safety_margin_mb")))
-    memory_table.add_row("Source", str(memory_info.get("source")))
-
-    console.print(memory_table)
-
+    print_doctor_header(console)
+    print_runtime_table(console, runtime)
+    print_torch_table(console, torch_info)
+    print_nvml_table(console, nvml_info)
+    print_nvml_devices_table(console, nvml_info)
+    print_vramcard_memory_table(console, memory_info)
+    print_cuda_devices_table(console, torch_info)
 
     if verbose:
-        verbose_table = Table(title="Verbose Diagnostics")
-        verbose_table.add_column("Field", style="bold")
-        verbose_table.add_column("Value")
-
-        verbose_table.add_row("Schema", str(vramcard.get("schema")))
-        verbose_table.add_row("Generated at", str(vramcard.get("generated_at")))
-        verbose_table.add_row("GPU Source", str(vramcard.get("gpu", {}).get("source")))
-        verbose_table.add_row("Memory Source", str(vramcard.get("memory", {}).get("source")))
-        verbose_table.add_row("Python executable", str(runtime.get("python_executable")))
-
-        console.print(verbose_table)
-
-
-    if torch_info.get("devices"):
-        gpu_table = Table(title="CUDA Devices")
-        gpu_table.add_column("Index", style="bold")
-        gpu_table.add_column("Name")
-        gpu_table.add_column("VRAM MB")
-        gpu_table.add_column("SM")
-
-        for device in torch_info.get("devices", []):
-            gpu_table.add_row(
-                str(device["index"]),
-                str(device["name"]),
-                str(device["total_vram_mb"]),
-                str(device["compute_capability"])
-             )
-
-        console.print(gpu_table)
+        print_verbose_table(console, runtime, vramcard)
 
     if write_card:
         path = save_vramcard(output, card=vramcard)
