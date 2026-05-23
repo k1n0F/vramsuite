@@ -106,7 +106,7 @@ def doctor(
         console.print(gpu_table)
 
 
-    if torch_info.get["devices"]:
+    if torch_info.get("devices"):
         gpu_table = Table(title="CUDA Devices")
         gpu_table.add_column("Index", style="bold")
         gpu_table.add_column("Name")
