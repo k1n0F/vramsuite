@@ -6,9 +6,10 @@ Status:
 """
 
 from __future__ import annotations
+import json
+from pathlib import Path
 
 import typer
-
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -35,16 +36,35 @@ def doctor(
     write_card: bool = typer.Option (
         True,
         "--write-card/--no-write-card",
-        help="Write system.vramcard.json to the current directory.",
+        help="Write a .vramcard JSON file.",
+     ),
+     output: Path = typer.Option(
+        Path("system.vramcard.json"),
+        "--output",
+        "-o",
+        help="Output path for .vramcard JSON file.",
+     ),
+     json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the generated .vramcard JSON to stdout.",
+     ),
+     verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Show detailed diagnostic information.",
      ),
 ) -> None:
+    
+
     """Show basic VRAM Suite diagnostic information."""
     fingerprint = collect_fingerprint()
     runtime = fingerprint["runtime"]
     torch_info = fingerprint["torch"]
     nvml_info = fingerprint["nvml"]
     
-    vramcard = create_vramcard()
+    vramcard = create_vramcard(fingerprint=fingerprint)
     memory_info = vramcard["memory"]
 
 
@@ -125,6 +145,20 @@ def doctor(
     console.print(memory_table)
 
 
+    if verbose:
+        verbose_table = Table(title="Verbose Diagnostics")
+        verbose_table.add_column("Field", style="bold")
+        verbose_table.add_column("Value")
+
+        verbose_table.add_row("Schema", str(vramcard.get("schema")))
+        verbose_table.add_row("Generated at", str(vramcard.get("generated_at")))
+        verbose_table.add_row("GPU Source", str(vramcard.get("gpu", {}).get("source")))
+        verbose_table.add_row("Memory Source", str(vramcard.get("memory", {}).get("source")))
+        verbose_table.add_row("Python executable", str(runtime.get("python_executable")))
+
+        console.print(verbose_table)
+
+
     if torch_info.get("devices"):
         gpu_table = Table(title="CUDA Devices")
         gpu_table.add_column("Index", style="bold")
@@ -143,8 +177,17 @@ def doctor(
         console.print(gpu_table)
 
     if write_card:
-        path = save_vramcard("system.vramcard.json")
+        path = save_vramcard(output, card=vramcard)
         console.print(f"[green]Saved:[/green] {path}")
+
+    if json_output:
+        console.print_json(
+            json.dumps(
+                vramcard,
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
 
     console.print("[yellow]Next:[/yellow] v0.2-alpha safe allocation probe")
 

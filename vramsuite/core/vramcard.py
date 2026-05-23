@@ -128,9 +128,10 @@ def _get_driver_memory(
         }
 
 
-def create_vramcard() -> dict[str, Any]:
+def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]:
     """Create a basic system.vramcard dictionary."""
-    fingerprint = collect_fingerprint()
+    if fingerprint is None:
+        fingerprint = collect_fingerprint()
 
     runtime_info = fingerprint["runtime"]
     torch_info = fingerprint["torch"]
@@ -177,10 +178,15 @@ def create_vramcard() -> dict[str, Any]:
     }
 
 
-def save_vramcard(path: str | Path = "system.vramcard.json") -> Path:
+def save_vramcard(
+        path: str | Path = "system.vramcard.json",
+        card: dict[str, Any] | None = None,
+) -> Path:
     """Create and save system.vramcard.json."""
     output_path = Path(path)
-    card = create_vramcard()
+
+    if card is None:
+        card = create_vramcard()
 
     output_path.write_text(
         json.dumps(card, indent=2, ensure_ascii=False),
