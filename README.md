@@ -11,12 +11,17 @@ Current status: **pre-alpha / v0.1-alpha foundation**
 VRAM Suite currently provides:
 
 - CLI diagnostics through `vramsuite doctor`
-- System and runtime fingerprint collection
+- Public Python API through `import vramsuite`
+- Structured doctor API through `run_doctor()`
+- System/runtime fingerprint collection
 - Optional PyTorch/CUDA detection
 - NVIDIA GPU memory detection through NVML using `ctypes`
 - Driver-level VRAM information without requiring PyTorch
 - `.vramcard` JSON profile generation
-- Public Python API entrypoints
+- Rich terminal reports
+- Optional bounded CUDA allocation probe through PyTorch
+
+The allocation probe is disabled by default and only runs when explicitly requested with `--probe`.
 
 The current `.vramcard` includes:
 
@@ -87,6 +92,52 @@ Show additional diagnostic details:
 ```bash
 uv run vramsuite doctor --verbose
 ```
+Run the bounded CUDA allocation probe:
+
+```bash
+uv run vramsuite doctor --probe
+```
+
+Run the probe with custom limits:
+
+```bash
+uv run vramsuite doctor --probe --probe-max-mb 8192 --probe-step-mb 256 --probe-free-floor-mb 2048
+```
+### Probe section
+
+```markdown
+## Bounded CUDA allocation probe
+
+VRAM Suite includes an optional bounded CUDA allocation probe.
+
+The probe is designed to be conservative:
+
+- It does not run by default.
+- It requires explicit `--probe`.
+- It uses PyTorch CUDA only if available.
+- It allocates memory in configurable steps.
+- It never attempts more than `--probe-max-mb`.
+- It keeps a configurable free VRAM floor through `--probe-free-floor-mb`.
+- It releases allocated tensors before returning.
+
+Example:
+
+```bash
+uv run vramsuite doctor --probe --probe-max-mb 8192 --probe-step-mb 256
+```
+
+Example result:
+```bash
+Safe Probe
+Available             True
+Backend               torch-cuda
+Attempted MB          8192
+Allocated MB          8192
+Safe Allocatable MB   6963
+Safety Margin MB      1228
+Error                 None
+```
+This is not a full VRAM exhaustion test. It is a bounded diagnostic probe intended to confirm that the current process can allocate memory safely within configured limits.
 
 ## Example output
 
@@ -158,6 +209,34 @@ fingerprint = vramsuite.collect_fingerprint()
 card = vramsuite.create_vramcard()
 
 print(card["memory"])
+print(result["memory"])
+```
+run_doctor() returns structured diagnostic data:
+
+```bash
+fingerprint
+vramcard
+runtime
+torch
+nvml
+gpu
+memory
+probe
+```
+
+Run doctor with probe enabled:
+
+```bash
+import vramsuite
+
+result = vramsuite.run_doctor(
+    with_probe=True,
+    probe_max_mb=1024,
+    probe_step_mb=128,
+    probe_free_floor_mb=2048,
+)
+
+print(result["probe"])
 ```
 
 Direct imports are also available:
@@ -172,49 +251,58 @@ card = create_vramcard(fingerprint=fingerprint)
 save_vramcard("system.vramcard.json", card=card)
 ```
 
+```markdown
 ## Architecture
 
 Current modules:
 
 ```text
 vramsuite/
+  __init__.py        Public Python API
   cli/
     main.py          CLI entrypoint
   core/
+    doctor.py        Structured diagnostics API
     fingerprint.py   Runtime, PyTorch and NVML fingerprint collection
-    vramcard.py      .vramcard creation and loading/saving
+    probe.py         Bounded CUDA allocation probe
     reports.py       Rich terminal report rendering
     runtime.py       OS/Python/runtime detection
+    vramcard.py      .vramcard creation and loading/saving
   backends/
     nvml.py          NVIDIA NVML reader through ctypes
-```
 
 Current data flow:
 
 ```text
 CLI
-  -> collect_fingerprint()
-      -> runtime info
-      -> optional PyTorch info
-      -> NVML driver memory info
-  -> create_vramcard()
+  -> run_doctor()
+      -> collect_fingerprint()
+          -> runtime info
+          -> optional PyTorch info
+          -> NVML driver memory info
+      -> create_vramcard()
+      -> optional bounded probe
   -> render doctor report
   -> optionally save .vramcard
 ```
 
+### Roadmap update
+
+```markdown
 ## Roadmap
 
 Planned next steps:
 
-- Safe allocation probe
-- Process-level allocatable VRAM estimation
-- Safety margin calculation
-- Workflow profile format
-- ComfyUI workflow analysis
-- Model file inspection
-- OOM risk estimation
-- Public profile/report format
-- Optional ComfyUI integration
+- Improve probe reporting
+- Add optional memory-touch probe mode
+- Add probe hold/debug mode
+- Add process-level memory tracking
+- Add workflow profile format
+- Add ComfyUI workflow analysis
+- Add model file inspection
+- Add OOM risk estimation
+- Add profile validation and schema checks
+- Add optional ComfyUI integration
 
 ## Status
 
