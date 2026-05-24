@@ -58,7 +58,7 @@ def run_doctor(
 
         probe_info = probe_result_to_dict(probe_result)
 
-        memory_info["proccess_allocatable_mb"] = probe_info.get("allocated_mb")
+        memory_info["process_allocatable_mb"] = probe_info.get("allocated_mb")
         memory_info["safe_allocatable_mb"] = probe_info.get("safe_allocatable_mb")
         memory_info["safety_margin_mb"] = probe_info.get("safety_margin_mb")
 
