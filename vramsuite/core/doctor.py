@@ -13,12 +13,14 @@ from typing import Any
 from vramsuite.core.fingerprint import collect_fingerprint
 from vramsuite.core.vramcard import create_vramcard
 from vramsuite.core.probe import probe_result_to_dict, run_torch_cuda_probe
+from vramsuite.core.risk import estimate_oom_risk, risk_estimate_to_dict
 
 def run_doctor(
         with_probe: bool = False,
         probe_max_mb: int = 1024,
         probe_step_mb: int = 128,
         probe_floor_mb: int = 2048,
+        estimate_mb: int | None = None,
 ) -> dict[str, Any]:
     """
     Run VRAM Suite doctor diagnostics and return structured data.
@@ -47,6 +49,7 @@ def run_doctor(
     memory_info = vramcard.get("memory", {})
 
     probe_info: dict[str, Any] | None = None
+    risk_info: dict[str, Any] | None = None
 
     if with_probe:
         probe_result = run_torch_cuda_probe(
@@ -64,6 +67,15 @@ def run_doctor(
 
         vramcard["memory"] = memory_info
         vramcard["probe"] = probe_info
+
+
+        if estimate_mb is not None:
+            risk_result = estimate_oom_risk(
+                required_mb=estimate_mb,
+                memory_info=memory_info,
+            )
+            risk_info = risk_estimate_to_dict(risk_result)
+            vramcard["risk_estimate"] = risk_info
     
     return {
             "fingerprint": fingerprint,
@@ -74,4 +86,5 @@ def run_doctor(
             "gpu": gpu_info,
             "memory": memory_info,
             "probe": probe_info,
+            "risk_estimate": risk_info,
         }

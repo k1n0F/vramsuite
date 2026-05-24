@@ -196,3 +196,30 @@ def print_probe_table(console: Console, probe_info: dict[str, Any] | None) -> No
         table.add_row("Notes", " | ".join(str(note) for note in notes))
 
     console.print(table)
+
+
+def print_risk_table(console: Console, risk_info: dict[str, Any] | None) -> None:
+    """Print OOM risk estimate results."""
+    if risk_info is None:
+        return
+    
+    table = Table(title="OOM Risk Estimate")
+    table.add_column("Field", style="bold")
+    table.add_column("Value")
+
+    table.add_row("Available", str(risk_info.get("available")))
+    table.add_row("Required MB", str(risk_info.get("required_mb")))
+    table.add_row("Available MB", str(risk_info.get("available_mb")))
+    table.add_row("Remaining MB", str(risk_info.get("remaining_mb")))
+    
+    usage_ratio = risk_info.get("usage_ratio")
+    if usage_ratio is not None:
+        usage_ratio_text = f"{usage_ratio:.2%}"
+    else:
+        usage_ratio_text = "None"
+
+    table.add_row("Usage Ratio", usage_ratio_text)
+    table.add_row("Risk Level", str(risk_info.get("risk_level")))
+    table.add_row("Reason", str(risk_info.get("reason")))
+
+    console.print(table)

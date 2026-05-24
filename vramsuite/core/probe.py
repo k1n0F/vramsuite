@@ -34,6 +34,8 @@ def run_torch_cuda_probe(
         step_mb: int = 128,
         hard_free_floor_mb: int = 2048,
         safety_ratio: float = 0.85,
+        probe_free_floor_mb = 2048,
+        max_free_ratio = 0.9,
 ) -> ProbeResult:
     """
     Run a conservative CUDA allocation probe using PyTorch.
@@ -73,6 +75,11 @@ def run_torch_cuda_probe(
                 f"hard_free_floor_mb={hard_free_floor_mb}",
             ]
         )
+    if max_probe_mb > driver_free_mb:
+        notes.append(
+            f"Requested probe_max_mb={max_probe_mb} MB exceeds current driver_free_mb={driver_free_mb} MB."
+        )
+        notes.append("Probe will be clamped to available free VRAM safety bounds.")
     
     try:
         import torch
@@ -103,6 +110,11 @@ def run_torch_cuda_probe(
     max_allowed_by_floor_mb = max(driver_free_mb - hard_free_floor_mb, 0)
     probe_limit_mb = min(max_probe_mb, max_allowed_by_floor_mb)
     probe_limit_mb = _round_down_to_step(probe_limit_mb, step_mb)
+
+    if probe_limit_mb < max_probe_mb:
+        notes.append(
+            f"Requested probe limit was clamped from {max_probe_mb} MB to {probe_limit_mb} MB."
+        )
 
     if probe_limit_mb <= 0:
         return ProbeResult(

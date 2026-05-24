@@ -27,6 +27,7 @@ from vramsuite.core.reports import (
     print_verbose_table,
     print_vramcard_memory_table,
     print_probe_table,
+    print_risk_table,
 )
 
 app = typer.Typer(
@@ -88,6 +89,11 @@ def doctor(
         help="Minimum free driver VRAM to leave untouched.",
 
     ),
+    estimate_mb: int | None = typer.Option(
+        None,
+        "--estimate-mb",
+        help="Estimate OOM risk for a required VRAM amount in MB.",
+    ),
 ) -> None:
     """Show basic VRAM Suite diagnostic information."""
     doctor_results = run_doctor(
@@ -95,6 +101,7 @@ def doctor(
         probe_max_mb=probe_max_mb,
         probe_step_mb=probe_step_mb,
         probe_floor_mb=probe_free_floor_mb,
+        estimate_mb=estimate_mb,
     )
 
     runtime = doctor_results["runtime"]
@@ -103,7 +110,7 @@ def doctor(
     vramcard = doctor_results["vramcard"]
     memory_info = doctor_results["memory"]
     probe_info = doctor_results.get("probe")
-
+    risk_info = doctor_results.get("risk_estimate")
 
     print_doctor_header(console)
     print_runtime_table(console, runtime)
@@ -113,7 +120,7 @@ def doctor(
     print_vramcard_memory_table(console, memory_info)
     print_probe_table(console, probe_info)
     print_cuda_devices_table(console, torch_info)
-
+    print_risk_table(console, risk_info)
     if verbose:
         print_verbose_table(console, runtime, vramcard)
 
@@ -130,7 +137,7 @@ def doctor(
             )
         )
 
-    console.print("[yellow]Next:[/yellow] v0.2-alpha safe allocation probe")
+    console.print("[yellow]Next:[/yellow] workflow profiling and OOM risk estimation")
 
 if __name__ == "__main__":
     app()
