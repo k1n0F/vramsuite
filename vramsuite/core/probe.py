@@ -35,7 +35,7 @@ def run_torch_cuda_probe(
         hard_free_floor_mb: int = 2048,
         safety_ratio: float = 0.85,
         probe_free_floor_mb = 2048,
-        max_free_ratio = 0.9,
+        max_free_ratio: float = 0.9,
 ) -> ProbeResult:
     """
     Run a conservative CUDA allocation probe using PyTorch.
@@ -108,6 +108,14 @@ def run_torch_cuda_probe(
         )
     
     max_allowed_by_floor_mb = max(driver_free_mb - hard_free_floor_mb, 0)
+    max_allowed_by_ratio_mb = int(driver_free_mb * max_free_ratio)
+
+    probe_limit_mb = min(
+        max_probe_mb,
+        max_allowed_by_floor_mb,
+        max_allowed_by_ratio_mb,
+    )
+
     probe_limit_mb = min(max_probe_mb, max_allowed_by_floor_mb)
     probe_limit_mb = _round_down_to_step(probe_limit_mb, step_mb)
 
