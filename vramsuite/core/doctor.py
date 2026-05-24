@@ -20,6 +20,7 @@ def run_doctor(
         probe_max_mb: int = 1024,
         probe_step_mb: int = 128,
         probe_floor_mb: int = 2048,
+        probe_max_free_ratio: float = 0.9,
         estimate_mb: int | None = None,
 ) -> dict[str, Any]:
     """
@@ -57,6 +58,7 @@ def run_doctor(
             max_probe_mb=probe_max_mb,
             step_mb=probe_step_mb,
             hard_free_floor_mb=probe_floor_mb,
+            max_free_ratio=probe_max_free_ratio,
         )
 
         probe_info = probe_result_to_dict(probe_result)

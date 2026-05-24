@@ -94,6 +94,11 @@ def doctor(
         "--estimate-mb",
         help="Estimate OOM risk for a required VRAM amount in MB.",
     ),
+    probe_max_free_ratio: float = typer.Option(
+        0.9,
+        "--probe-max-free-ratio",
+        help="Maximum fraction of currently free VRAM that the probe may attempt to allocate.",
+    ),
 ) -> None:
     """Show basic VRAM Suite diagnostic information."""
     doctor_results = run_doctor(
@@ -102,6 +107,7 @@ def doctor(
         probe_step_mb=probe_step_mb,
         probe_floor_mb=probe_free_floor_mb,
         estimate_mb=estimate_mb,
+        probe_max_free_ratio=probe_max_free_ratio,
     )
 
     runtime = doctor_results["runtime"]
@@ -111,7 +117,8 @@ def doctor(
     memory_info = doctor_results["memory"]
     probe_info = doctor_results.get("probe")
     risk_info = doctor_results.get("risk_estimate")
-
+    
+    
     print_doctor_header(console)
     print_runtime_table(console, runtime)
     print_torch_table(console, torch_info)
