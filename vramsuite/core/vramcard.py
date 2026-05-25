@@ -9,7 +9,7 @@ Planned for v0.1-alpha:
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -150,7 +150,7 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
 
     return {
         "schema": VRAMCARD_SCHEMA_VERSION,
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
 
         "gpu": primary_gpu,
 
