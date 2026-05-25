@@ -34,7 +34,6 @@ def run_torch_cuda_probe(
         step_mb: int = 128,
         hard_free_floor_mb: int = 2048,
         safety_ratio: float = 0.85,
-        probe_free_floor_mb = 2048,
         max_free_ratio: float = 0.9,
 ) -> ProbeResult:
     """
@@ -102,7 +101,7 @@ def run_torch_cuda_probe(
             attempted_mb=0,
             allocated_mb=None,
             safe_allocatable_mb=None,
-            safe_margin_mb=None,
+            safety_margin_mb=None,
             error="torch.cuda is not available",
             notes=["PyTorch is installed, but CUDA is not available in this environment."],
         )
@@ -116,7 +115,6 @@ def run_torch_cuda_probe(
         max_allowed_by_ratio_mb,
     )
 
-    probe_limit_mb = min(max_probe_mb, max_allowed_by_floor_mb)
     probe_limit_mb = _round_down_to_step(probe_limit_mb, step_mb)
 
     if probe_limit_mb < max_probe_mb:
@@ -131,7 +129,7 @@ def run_torch_cuda_probe(
             attempted_mb=0,
             allocated_mb=None,
             safe_allocatable_mb=None,
-            safe_margin_mb=None,
+            safety_margin_mb=None,
             error="probe limit is zero after applying safety limits",
             notes=[
                 f"driver_free_mb={driver_free_mb}",

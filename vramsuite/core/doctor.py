@@ -71,13 +71,13 @@ def run_doctor(
         vramcard["probe"] = probe_info
 
 
-        if estimate_mb is not None:
-            risk_result = estimate_oom_risk(
-                required_mb=estimate_mb,
-                memory_info=memory_info,
-            )
-            risk_info = risk_estimate_to_dict(risk_result)
-            vramcard["risk_estimate"] = risk_info
+    if estimate_mb is not None:
+        risk_result = estimate_oom_risk(
+            required_mb=estimate_mb,
+            memory_info=memory_info,
+        )
+        risk_info = risk_estimate_to_dict(risk_result)
+        vramcard["risk_estimate"] = risk_info
     
     return {
             "fingerprint": fingerprint,
