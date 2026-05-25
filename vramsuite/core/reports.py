@@ -210,6 +210,7 @@ def print_risk_table(console: Console, risk_info: dict[str, Any] | None) -> None
     table.add_row("Available", str(risk_info.get("available")))
     table.add_row("Required MB", str(risk_info.get("required_mb")))
     table.add_row("Available MB", str(risk_info.get("available_mb")))
+    table.add_row("Availability Source", str(risk_info.get("availability_source")))
     table.add_row("Remaining MB", str(risk_info.get("remaining_mb")))
     
     usage_ratio = risk_info.get("usage_ratio")
