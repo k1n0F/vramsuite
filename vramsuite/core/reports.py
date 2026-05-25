@@ -224,3 +224,48 @@ def print_risk_table(console: Console, risk_info: dict[str, Any] | None) -> None
     table.add_row("Reason", str(risk_info.get("reason")))
 
     console.print(table)
+
+
+def print_vramcard_compare_table(console, comparison: dict) -> None:
+    """Print .vramcard comparison table."""
+
+    table = Table(title="VRAMCard Compare")
+
+    table.add_column("Section")
+    table.add_column("Field")
+    table.add_column("Left")
+    table.add_column("Right")
+    table.add_column("Delta")
+    table.add_column("Changed")
+
+    for row in comparison.get("rows", []):
+        changed = row.get("changed")
+
+        if not changed:
+            continue
+
+        delta = row.get("delta")
+
+        if isinstance(delta, (int, float)):
+            if delta > 0:
+                delta_text = f"+{delta}"
+            else:
+                delta_text = str(delta)
+        else:
+            delta_text = "-"
+
+        table.add_row(
+            str(row.get("section")),
+            str(row.get("field")),
+            str(row.get("left")),
+            str(row.get("right")),
+            delta_text,
+            "yes" if changed else "no"
+        )
+
+    console.print(table)
+
+    console.print(
+        f"[green]Changed rows:[/green] "
+        f"{comparison.get('changed_rows')} / {comparison.get('total_rows')}"
+    )

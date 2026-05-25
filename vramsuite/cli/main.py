@@ -14,7 +14,9 @@ import typer
 from rich.console import Console
 
 from vramsuite.core.doctor import run_doctor
-from vramsuite.core.vramcard import save_vramcard
+from vramsuite.core.vramcard import load_vramcard, save_vramcard
+from vramsuite.core.compare import compare_vramcards
+
 
 
 from vramsuite.core.reports import (
@@ -28,6 +30,7 @@ from vramsuite.core.reports import (
     print_vramcard_memory_table,
     print_probe_table,
     print_risk_table,
+    print_vramcard_compare_table,
 )
 
 app = typer.Typer(
@@ -145,6 +148,41 @@ def doctor(
         )
 
     console.print("[yellow]Next:[/yellow] workflow profiling and OOM risk estimation")
+
+@app.command()
+def compare(
+    left: Path = typer.Argument(
+        ...,
+        help="Path to the first .vramcard JSON file.",
+    ),
+    right: Path = typer.Argument(
+        ...,
+        help="Path to the second .vramcard JSON file."
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print comparision result as JSON.",
+    ),
+) -> None:
+    """Compare two .vramcrad JSON files."""
+
+    left_card = load_vramcard(left)
+    right_card = load_vramcard(right)
+
+    comparison = compare_vramcards(left_card, right_card)
+
+    if json_output:
+        console.print_json(
+            json.dumps(
+                comparison,
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    
+    print_vramcard_compare_table(console, comparison)
 
 if __name__ == "__main__":
     app()
