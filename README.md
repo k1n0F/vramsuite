@@ -20,7 +20,10 @@ VRAM Suite currently provides:
 - `.vramcard` JSON profile generation
 - Rich terminal reports
 - Optional bounded CUDA allocation probe through PyTorch
+- Probe safety clamping through configurable limits
 - Basic OOM risk estimation through `--estimate-mb`
+- OOM risk availability source reporting
+- Windows and WSL-friendly runtime detection
 
 The allocation probe is disabled by default and only runs when explicitly requested with `--probe`.
 
@@ -29,6 +32,7 @@ The OOM risk estimator is also explicit. It only runs when `--estimate-mb` is pr
 The current `.vramcard` includes:
 
 - OS and Python runtime information
+- WSL/container detection
 - PyTorch availability
 - CUDA availability through PyTorch, if installed
 - NVML availability
@@ -36,6 +40,7 @@ The current `.vramcard` includes:
 - Total/free/used driver VRAM
 - Optional bounded probe result
 - Optional OOM risk estimate
+- OOM risk availability source
 - Memory source information
 
 ## Why
@@ -52,6 +57,8 @@ The long-term goal is to help answer questions like:
 - Is this workflow likely to fail with OOM?
 - Which part of the stack affects memory usage?
 - How much safety margin should be left before running a workflow?
+- Does the same GPU behave differently on Windows, WSL, or another runtime?
+- Which memory value is being used for risk estimation?
 
 ## Installation
 
@@ -111,6 +118,12 @@ Run the probe with custom safety limits:
 uv run vramsuite doctor --probe --probe-max-mb 8192 --probe-step-mb 256 --probe-free-floor-mb 2048
 ```
 
+Run the probe with a maximum free-memory ratio:
+
+```bash
+uv run vramsuite doctor --probe --probe-max-mb 17000 --probe-max-free-ratio 0.90
+```
+
 Estimate OOM risk for a required VRAM amount:
 
 ```bash
@@ -135,6 +148,7 @@ The probe is designed to be conservative:
 - It allocates memory in configurable steps.
 - It never attempts more than `--probe-max-mb`.
 - It keeps a configurable free VRAM floor through `--probe-free-floor-mb`.
+- It can clamp the requested probe size through `--probe-max-free-ratio`.
 - It releases allocated tensors before returning.
 - It is not a full VRAM exhaustion test.
 
@@ -160,6 +174,38 @@ Error                 None
 This confirms that the current process could allocate the configured amount within the probe limits.
 
 It does **not** mean the whole GPU was stress-tested, and it does **not** intentionally push the GPU to OOM.
+
+## Probe safety clamp
+
+The probe will clamp unsafe or unrealistic requests.
+
+For example, asking for more VRAM than is currently free does not force VRAM Suite to try that exact value.
+
+Example:
+
+```bash
+uv run vramsuite doctor --probe --probe-max-mb 17000
+```
+
+Possible result:
+
+```text
+Requested probe_max_mb=17000 MB exceeds current driver_free_mb=14052 MB.
+Probe will be clamped to available free VRAM safety bounds.
+Requested probe limit was clamped from 17000 MB to 11904 MB.
+```
+
+The final probe limit is selected from the strictest active safety bound:
+
+```text
+min(
+  probe_max_mb,
+  driver_free_mb - probe_free_floor_mb,
+  driver_free_mb * probe_max_free_ratio
+)
+```
+
+The result is then rounded down to the configured allocation step.
 
 ## OOM risk estimation
 
@@ -187,13 +233,14 @@ Example result:
 
 ```text
 OOM Risk Estimate
-Available      True
-Required MB    8000
-Available MB   10444
-Remaining MB   2444
-Usage Ratio    76.60%
-Risk Level     medium
-Reason         Required memory is close to available memory.
+Available             True
+Required MB           8000
+Available MB          10444
+Availability Source   probe_safe_allocatable
+Remaining MB          2444
+Usage Ratio           76.60%
+Risk Level            medium
+Reason                Required memory is close to available memory. Based on confirmed safe probe budget.
 ```
 
 Risk levels:
@@ -203,6 +250,69 @@ Risk levels:
 - `high` — required memory is very close to the available budget
 - `critical` — required memory exceeds the available budget
 - `unknown` — not enough information to estimate risk
+
+### Availability source
+
+The risk estimator reports where the available memory value came from.
+
+Current sources:
+
+- `driver_free_at_scan` — driver-level free VRAM from NVML at scan time
+- `probe_safe_allocatable` — confirmed safe allocatable budget from the bounded CUDA probe
+- `unknown` — no usable memory source was found
+
+This is important because these values answer different questions.
+
+`driver_free_at_scan` means:
+
+```text
+How much VRAM did the driver report as free when the scan ran?
+```
+
+`probe_safe_allocatable` means:
+
+```text
+How much memory did the current Python process confirm as safely allocatable within the configured probe limits?
+```
+
+A small default probe can produce a small safe budget, for example `870 MB` from a `1024 MB` probe. That does not mean the GPU only has 870 MB available. It means the current run only confirmed 870 MB as safe because the probe limit was small.
+
+## Windows and WSL behavior
+
+VRAM Suite is designed to record environment differences.
+
+Example Windows runtime:
+
+```text
+OS        Windows
+Python    3.12.9
+WSL       False
+Torch     2.12.0+cu130
+CUDA      13.0
+NVML      True
+```
+
+Example WSL2 runtime:
+
+```text
+OS        Linux
+Platform  Linux-6.6.x-microsoft-standard-WSL2
+Python    3.10.12
+WSL       True
+Torch     2.13.0.dev+cu130
+CUDA      13.0
+NVML      True
+```
+
+In tested local runs on an RTX 5080, Windows and WSL2 produced matching bounded probe results with the same configuration:
+
+```text
+Probe allocated: 12288 MB
+Safe budget:     10444 MB
+Risk for 8000MB: medium
+```
+
+This makes Windows vs WSL comparison a useful future use case for `.vramcard` profiles.
 
 ## Example output
 
@@ -246,11 +356,12 @@ Safety Margin MB      1843
 Error                 None
 
 OOM Risk Estimate
-Required MB    8000
-Available MB   10444
-Remaining MB   2444
-Usage Ratio    76.60%
-Risk Level     medium
+Required MB           8000
+Available MB          10444
+Availability Source   probe_safe_allocatable
+Remaining MB          2444
+Usage Ratio           76.60%
+Risk Level            medium
 ```
 
 ## `.vramcard`
@@ -288,15 +399,22 @@ Example:
     "allocated_mb": 12288,
     "safe_allocatable_mb": 10444,
     "safety_margin_mb": 1843,
-    "error": null
+    "error": null,
+    "notes": [
+      "Real CUDA allocation probe completed within configured safety bounds.",
+      "This is not a full VRAM exhaustion test.",
+      "Probe limit was capped at 12288 MB."
+    ]
   },
   "risk_estimate": {
     "available": true,
     "required_mb": 8000,
     "available_mb": 10444,
+    "availability_source": "probe_safe_allocatable",
     "remaining_mb": 2444,
     "usage_ratio": 0.766,
-    "risk_level": "medium"
+    "risk_level": "medium",
+    "reason": "Required memory is close to available memory. Based on confirmed safe probe budget."
   }
 }
 ```
@@ -344,6 +462,7 @@ result = vramsuite.run_doctor(
     probe_max_mb=1024,
     probe_step_mb=128,
     probe_floor_mb=2048,
+    probe_max_free_ratio=0.90,
 )
 
 print(result["probe"])
@@ -359,6 +478,7 @@ result = vramsuite.run_doctor(
     probe_max_mb=8192,
     probe_step_mb=256,
     probe_floor_mb=2048,
+    probe_max_free_ratio=0.90,
     estimate_mb=8000,
 )
 
@@ -398,6 +518,7 @@ vramsuite/
   core/
     doctor.py        Structured diagnostics API
     fingerprint.py   Runtime, PyTorch and NVML fingerprint collection
+    policies.py      Safety policy defaults
     probe.py         Bounded CUDA allocation probe
     reports.py       Rich terminal report rendering
     risk.py          Basic OOM risk estimation
@@ -423,12 +544,33 @@ CLI
   -> optionally save .vramcard
 ```
 
+## Planned compute backends
+
+VRAM Suite may later include optional compute-level backends.
+
+These are not required for basic diagnostics and should remain optional.
+
+Potential future backends:
+
+- `torch-matmul` — high-level PyTorch-backed compute probe
+- `triton` — optional custom kernel probe layer
+- `cuda-runtime` — raw CUDA memory allocation/synchronization layer
+- `cublas` — raw cuBLAS/cuBLASLt GEMM probe layer without depending on PyTorch
+
+The intended long-term goal is to compare memory behavior across layers:
+
+```text
+NVML driver memory
+  -> process allocation probe
+  -> compute workload probe
+  -> workflow-level memory profile
+```
+
 ## Roadmap
 
 Planned next steps:
 
 - Improve probe reporting
-- Add availability source reporting for OOM risk estimates
 - Add optional memory-touch probe mode
 - Add probe hold/debug mode
 - Add process-level memory tracking
@@ -438,6 +580,8 @@ Planned next steps:
 - Add automatic workflow memory estimation
 - Add profile validation and schema checks
 - Add optional ComfyUI integration
+- Add optional compute backend capability detection
+- Add experimental compute probe layer
 
 ## Status
 
@@ -451,7 +595,10 @@ The current version is focused on building a clean foundation:
 - NVML memory reader
 - public Python API
 - bounded CUDA allocation probe
+- probe safety clamp
 - basic OOM risk estimation
+- risk availability source reporting
+- Windows/WSL runtime visibility
 
 The current version already provides a working diagnostic pipeline:
 
