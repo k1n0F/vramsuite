@@ -15,6 +15,7 @@ from typing import Any
 
 from vramsuite.core.runtime import collect_runtime_info, runtime_info_to_dict
 from vramsuite.backends.nvml import collect_nvml_info_dict
+from vramsuite.backends.cuda import collect_cuda_runtime_info_dict
 
 
 @dataclass(frozen=True)
@@ -75,9 +76,11 @@ def collect_fingerprint() -> dict[str, Any]:
     runtime = collect_runtime_info()
     torch_info = collect_torch_info()
     nvml_info = collect_nvml_info_dict()
+    cuda_runtime_info = collect_cuda_runtime_info_dict()
 
     return {
         "runtime": runtime_info_to_dict(runtime),
         "torch": asdict(torch_info),
         "nvml": nvml_info,
+        "cuda_runtime": cuda_runtime_info,
     }
