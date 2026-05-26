@@ -38,7 +38,7 @@ def _candidate_library_names() -> list[str]:
 
     if system == "Windows":
         return [
-            "cudart64_13.dll"
+            "cudart64_13.dll",
             "cudart64_130.dll",
             "cudart64_12.dll",
             "cudart64_110.dll",
