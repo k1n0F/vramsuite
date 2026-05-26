@@ -77,7 +77,7 @@ def _load_cudart() -> tuple[ctypes.CDLL | None, str | None, str | None]:
                 dll_dir = str(path.parent)
 
                 if hasattr(os, "add_dll_directory"):
-                    with os.add_all_directory(dll_dir):
+                    with os.add_dll_directory(dll_dir):
                         return ctypes.CDLL(str(path)), str(path), None
                     
             return ctypes.CDLL(name), name, None
