@@ -191,13 +191,13 @@ def collect_cublas_info() -> CublasInfo:
             available=False,
             error=f"Unexpected cuBLAS backend error: {exc}",
             library_path=library_path,
-            handle_created=bool(handle.value),
+            handle_created=handle.value is not None,
             version=None,
             version_text=None,
         )
     
     finally:
-        if handle.value:
+        if handle.value is not None:
             try:
                 cublas.cublasDestroy_v2(handle)
             except Exception:
