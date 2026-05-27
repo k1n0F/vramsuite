@@ -11,6 +11,13 @@ from pathlib import Path
 
 CUDA_SUCCESS = 0
 
+_CACHED_CUDART: ctypes.CDLL | None = None
+_CACHED_CUDART_PATH: str | None = None
+_CACHED_CUDART_CONFIGURED: False
+
+_DLL_DIRECTORY_HANDLE: list[Any] = []
+_DLL_DIRECTORY_PATHS: set[str] = set()
+
 
 class CudaMemcpyKind:
     HOST_TO_HOST = 0
@@ -81,12 +88,13 @@ def _load_cudart() -> tuple[ctypes.CDLL | None, str | None, str | None]:
         try:
             path = Path(name)
 
-            if path.is_absolute():
-                dll_dir = str(path.parent)
+            if path.exists():
+                resolved_path = path.resolve()
+                dll_dir = str(resolved_path.parent)
 
-                if hasattr(os, "add_dll_directory"):
-                    with os.add_dll_directory(dll_dir):
-                        return ctypes.CDLL(str(path)), str(path), None
+                _add_dll_directory_once(dll_dir)
+
+                return ctypes.CDLL(str(resolved_path)), str(resolved_path), None
                     
             return ctypes.CDLL(name), name, None
         
@@ -174,6 +182,17 @@ def _configure_signatures(cudart: ctypes.CDLL) -> None:
 
 
 def _get_configured_cudart() -> tuple[ctypes.CDLL, str | None]:
+    global _CACHED_CUDART
+    global _CACHED_CUDART_PATH
+    global _CACHED_CUDART_CONFIGURED
+
+    if _CACHED_CUDART is not None:
+        if not _CACHED_CUDART_CONFIGURED:
+            _configure_signatures(_CACHED_CUDART)
+            _CACHED_CUDART_CONFIGURED = True
+
+        return _CACHED_CUDART, _CACHED_CUDART_PATH
+
     cudart, library_path, load_error = _load_cudart()
 
     if cudart is None:
@@ -181,7 +200,27 @@ def _get_configured_cudart() -> tuple[ctypes.CDLL, str | None]:
     
     _configure_signatures(cudart)
 
+    _CACHED_CUDART = cudart
+    _CACHED_CUDART_PATH = library_path
+    _CACHED_CUDART_CONFIGURED = True
+
     return cudart, library_path
+
+def _add_dll_directory_once(directory: str) -> None:
+    if platform.system() != "Windows":
+        return
+    
+    if not hasattr(os, "add_dll_directory"):
+        return
+    
+    if directory in _DLL_DIRECTORY_PATHS:
+        return
+    
+    handle = os.add_dll_directory(directory)
+    
+    _DLL_DIRECTORY_HANDLE.append(handle)
+    _DLL_DIRECTORY_PATHS.add(directory)
+
 
 def cuda_malloc(size_bytes: int) -> ctypes.c_void_p:
     if size_bytes <= 0:
