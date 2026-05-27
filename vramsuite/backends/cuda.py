@@ -12,6 +12,14 @@ from pathlib import Path
 CUDA_SUCCESS = 0
 
 
+class CudaMemcpyKind:
+    HOST_TO_HOST = 0
+    HOST_TO_DEVICE = 1
+    DEVICE_TO_HOST = 2
+    DEVICE_TO_DEVICE = 3
+    DEFAULT = 4
+
+
 @dataclass(frozen=True)
 class CudaRuntimeInfo:
     available: bool
@@ -137,6 +145,128 @@ def _configure_signatures(cudart: ctypes.CDLL) -> None:
         ]
         cudart.cudaMemGetInfo.restype = ctypes.c_int
 
+        cudart.cudaMalloc.argtypes = [
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.c_size_t,
+        ]
+        cudart.cudaMalloc.restype = ctypes.c_int
+
+        cudart.cudaFree.argtypes = [ctypes.c_void_p]
+        cudart.cudaFree.restype = ctypes.c_int
+
+        cudart.cudaMemcpy.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_int,
+        ]
+        cudart.cudaMemcpy.restype = ctypes.c_int
+
+        cudart.cudaMemset.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_size_t,
+        ]
+        cudart.cudaMemset.restype = ctypes.c_int
+
+        cudart.cudaDeviceSynchronize.argtypes = []
+        cudart.cudaDeviceSynchronize.restype = ctypes.c_int
+
+
+def _get_configured_cudart() -> tuple[ctypes.CDLL, str | None]:
+    cudart, library_path, load_error = _load_cudart()
+
+    if cudart is None:
+        raise RuntimeError(load_error or "Cuda runtime library not found")
+    
+    _configure_signatures(cudart)
+
+    return cudart, library_path
+
+def cuda_malloc(size_bytes: int) -> ctypes.c_void_p:
+    if size_bytes <= 0:
+        raise ValueError(f"size_bytes must be > 0, got {size_bytes}")
+    
+    cudart, _ = _get_configured_cudart()
+
+    ptr = ctypes.c_void_p()
+    status = cudart.cudaMalloc(
+        ctypes.byref(ptr),
+        ctypes.c_size_t(size_bytes),
+    )
+
+    error = _check(status, cudart, "cudaMalloc")
+    if error is not None:
+        raise RuntimeError(error)
+    
+    if ptr.value is None:
+        raise RuntimeError("cudaMalloc returned NULL pointer")
+    
+    return ptr
+
+def cuda_free(ptr: ctypes.c_void_p | None) -> None:
+    if ptr is None or ptr.value is None:
+        return
+    
+    cudart, _ = _get_configured_cudart()
+
+    status = cudart.cudaFree(ptr)
+    error = _check(status, cudart, "cudaFree")
+    if error is not None:
+        raise RuntimeError(error)
+    
+
+def cuda_memcpy(
+    dst: ctypes.c_void_p | None,
+    src: ctypes.c_void_p | None,
+    size_bytes: int,
+    kind: int, 
+) -> None:
+    if size_bytes < 0:
+        raise ValueError(f"size_bytes must be >= 0, got {size_bytes}")
+    
+    cudart, _ = _get_configured_cudart()
+
+    status = cudart.cudaMemcpy(
+        dst,
+        src,
+        ctypes.c_size_t(size_bytes),
+        ctypes.c_int(kind),
+    )
+
+    error = _check(status, cudart, "cudaMemcpy")
+    if error is not None:
+        raise RuntimeError(error)
+    
+
+def cuda_memset(
+    ptr: ctypes.c_void_p | None,
+    value: int,
+    size_bytes: int,
+) -> None:
+    if size_bytes < 0:
+        raise ValueError(f"size_bytes must be >= 0, got {size_bytes}")
+    
+    cudart, _ = _get_configured_cudart()
+
+    status = cudart.cudaMemset(
+        ptr,
+        ctypes.c_int(value),
+        ctypes.c_size_t(size_bytes),
+    )
+
+    error = _check(status, cudart, "cudaMemset")
+    if error is not None:
+        raise RuntimeError(error)
+
+
+def cuda_synchronize() -> None:
+    cudart, _ = _get_configured_cudart()
+
+    status = cudart.cudaDeviceSynchronize()
+    error = _check(status, cudart, "cudaDeviceSynchronize")
+    if error is not None:
+        raise RuntimeError(error)
 
 def collect_cuda_runtime_info(device_index: int = 0) -> CudaRuntimeInfo:
     cudart, library_path, load_error = _load_cudart()

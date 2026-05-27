@@ -137,6 +137,7 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
     torch_info = fingerprint["torch"]
     nvml_info = fingerprint["nvml"]
     cuda_runtime_info = fingerprint.get("cuda_runtime", {})
+    cublas_info = fingerprint.get("cublas", {})
 
 
     primary_gpu = _get_primary_gpu(
@@ -165,6 +166,7 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
             "cuda_device_count": torch_info.get("device_count"),
 
             "cuda_runtime": cuda_runtime_info,
+            "cublas": cublas_info,
 
             "nvml_available": nvml_info.get("available"),
             "nvml_error": nvml_info.get("error"),
