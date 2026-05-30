@@ -39,9 +39,14 @@ class LoadedNativeLibrary:
         self.library_path = None
         self.error = None
 
+        handle = self._dll_directory_handle
         self._dll_directory_handle = None
 
+        if handle is not None:
+            handle.close()
+
     def require_library(self) -> ctypes.CDLL:
+        
         if self.library is None:
             raise NativeLibraryLoadError(
                 f"{self.logical_name} native library is not loaded"
