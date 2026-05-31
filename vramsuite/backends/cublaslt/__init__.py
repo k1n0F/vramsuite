@@ -12,6 +12,13 @@ from vramsuite.backends.cublaslt.runtime import (
     collect_cublaslt_info_dict,
 )
 
+from vramsuite.backends.cublaslt.layouts import (
+    GemmShape,
+    MatrixLayoutSpec,
+    MatmulLayoutSpec,
+)
+from vramsuite.backends.cublaslt.workspace import DeviceWorkspace
+
 __all__ = [
     "CublasLtInfo",
     "CublasLtRuntime",
@@ -20,4 +27,8 @@ __all__ = [
     "MatmulDesc",
     "MatrixLayout",
     "MatmulPreference",
+    "GemmShape",
+    "MatrixLayoutSpec",
+    "MatmulLayoutSpec",
+    "DeviceWorkspace",
 ]
