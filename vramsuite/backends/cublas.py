@@ -11,6 +11,10 @@ from vramsuite.backends.native_loader import load_native_library
 
 CUBLAS_STATUS_SUCCESS = 0
 
+CUBLAS_OP_N = 0
+CUBLAS_OP_T = 1
+CUBLAS_OP_C = 2
+
 @dataclass(frozen=True)
 class CublasInfo:
     available: bool
@@ -87,6 +91,24 @@ def _configure_signatures(cublas: ctypes.CDLL) -> None:
         ctypes.POINTER(ctypes.c_int),
     ]
     cublas.cublasGetVersion_v2.restype = ctypes.c_int
+
+    cublas.cublasSgemm_v2.argtypes = [
+        ctypes.c_void_p,                    # handle
+        ctypes.c_int,                       # transa
+        ctypes.c_int,                       # transb
+        ctypes.c_int,                       # m
+        ctypes.c_int,                       # n
+        ctypes.c_int,                       # k
+        ctypes.POINTER(ctypes.c_float),     # alpha
+        ctypes.c_void_p,                    # A
+        ctypes.c_int,                       # lda
+        ctypes.c_void_p,                    # B
+        ctypes.c_int,                       # ldb
+        ctypes.POINTER(ctypes.c_float),     # beta
+        ctypes.c_void_p,                    # c
+        ctypes.c_int,                       # ldc
+    ]
+    cublas.cublasSgemm_v2.restype = ctypes.c_int
 
 
 class CublasRuntime:
@@ -199,6 +221,49 @@ class CublasRuntime:
 
         return int(version.value)
     
+    def sgemm(
+            self,
+            *,
+            m: int,
+            n: int,
+            k: int,
+            alpha: float,
+            a_ptr: ctypes.c_void_p,
+            lda: int,
+            b_ptr: ctypes.c_void_p,
+            ldb: int,
+            beta: float,
+            c_ptr: ctypes.c_void_p,
+            ldc: int,
+            transa: int = CUBLAS_OP_N,
+            transb: int = CUBLAS_OP_N,
+    ) -> None:
+        cublas = self._require_cublas()
+        handle = self._require_handle()
+
+        alpha_value = ctypes.c_float(alpha)
+        beta_value = ctypes.c_float(beta)
+
+        status = cublas.cublasSgemm_v2(
+            handle,
+            transa,
+            transb,
+            m,
+            n,
+            k,
+            ctypes.byref(alpha_value),
+            a_ptr,
+            lda,
+            b_ptr,
+            ldb,
+            ctypes.byref(beta_value),
+            c_ptr,
+            ldc,
+        )
+
+        self._check_status(status, "cublasSgemm_v2")
+
+
     def collect_info(self) -> CublasInfo:
         version = self.get_version()
 
