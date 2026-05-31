@@ -19,6 +19,11 @@ from vramsuite.backends.cublaslt.layouts import (
 )
 from vramsuite.backends.cublaslt.workspace import DeviceWorkspace
 
+from vramsuite.backends.cublaslt.heuristics import (
+    RawMatmulHeuristic,
+    select_matmul_algorithm,
+)
+
 __all__ = [
     "CublasLtInfo",
     "CublasLtRuntime",
@@ -31,4 +36,6 @@ __all__ = [
     "MatrixLayoutSpec",
     "MatmulLayoutSpec",
     "DeviceWorkspace",
+    "RawMatmulHeuristic",
+    "select_matmul_algorithm",
 ]

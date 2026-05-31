@@ -110,6 +110,32 @@ def _configure_signatures(cublaslt: ctypes.CDLL) -> None:
     ]
     cublaslt.cublasLtMatmulPreferenceSetAttribute.restype = ctypes.c_int
 
+    cublaslt.cublasLtMatmulAlgoGetHeuristic.argtypes = [
+        ctypes.c_void_p,                   # lightHandle
+        ctypes.c_void_p,                   # operationDesc
+        ctypes.c_void_p,                   # Adesc
+        ctypes.c_void_p,                   # Bdesc
+        ctypes.c_void_p,                   # Cdesc
+        ctypes.c_void_p,                   # Ddesc
+        ctypes.c_void_p,                   # preference
+        ctypes.c_int,                      # requestedAlgoCount
+        ctypes.c_void_p,                   # heuristicResultsArray
+        ctypes.POINTER(ctypes.c_int),      # returnedAlgoCount
+    ]
+    cublaslt.cublasLtMatmulAlgoGetHeuristic.restype = ctypes.c_int
+
+    cublaslt.cublasLtMatmulAlgoCheck.argtypes = [
+        ctypes.c_void_p,                   # lightHandle
+        ctypes.c_void_p,                   # operationDesc
+        ctypes.c_void_p,                   # Adesc
+        ctypes.c_void_p,                   # Bdesc
+        ctypes.c_void_p,                   # Cdesc
+        ctypes.c_void_p,                   # Ddesc
+        ctypes.c_void_p,                   # preference
+        ctypes.c_void_p,                   # algo
+    ]
+    cublaslt.cublasLtMatmulAlgoCheck.restype = ctypes.c_int
+
 
 class CublasLtRuntime:
     def __init__(self) -> None:
