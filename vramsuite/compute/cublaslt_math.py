@@ -49,14 +49,14 @@ def _max_abs_error_against_a(actual: Any, expected_a: Any, count: int) -> float:
     max_error = 0.0
 
     for index in range(count):
-        error = abs(float(actual[index])) - float(expected_a[index])
+        error = abs(float(actual[index]) - float(expected_a[index]))
         if error > max_error:
             max_error = error
 
     return max_error
 
 
-def _sample_value(buffer: Any, count: int, sample_count: int = 8) -> list[float]:
+def _sample_values(buffer: Any, count: int, sample_count: int = 8) -> list[float]:
     if count <= 0:
         return []
     
@@ -93,7 +93,7 @@ def run_cublaslt_identity_gemm_check(
     
     matrix_element = size * size
     element_size = ctypes.sizeof(ctypes.c_float)
-    matrxi_size_bytes = matrix_element * element_size
+    matrix_size_bytes = matrix_element * element_size
 
     FloatArray = ctypes.c_float * matrix_element
 
@@ -125,7 +125,7 @@ def run_cublaslt_identity_gemm_check(
             layout_spec.d.create(rt) as d_layout,
             MatmulPreference(rt, max_workspace_bytes=workspace_bytes) as pref,
         ):
-            heursitic = select_matmul_algorithm(
+            heuristic = select_matmul_algorithm(
                 rt,
                 operation_desc=op,
                 a_layout=a_layout,
@@ -138,27 +138,27 @@ def run_cublaslt_identity_gemm_check(
             )
 
             try:
-                a_ptr = cuda.malloc(matrxi_size_bytes)
-                b_ptr = cuda.malloc(matrxi_size_bytes)
-                c_ptr = cuda.malloc(matrxi_size_bytes)
-                d_ptr = cuda.malloc(matrxi_size_bytes)
+                a_ptr = cuda.malloc(matrix_size_bytes)
+                b_ptr = cuda.malloc(matrix_size_bytes)
+                c_ptr = cuda.malloc(matrix_size_bytes)
+                d_ptr = cuda.malloc(matrix_size_bytes)
 
                 cuda.memcpy(
                     a_ptr,
                     ctypes.cast(host_a, ctypes.c_void_p),
-                    matrxi_size_bytes,
+                    matrix_size_bytes,
                     CudaMemcpyKind.HOST_TO_DEVICE,
                 )
                 cuda.memcpy(
                     b_ptr,
                     ctypes.cast(host_b, ctypes.c_void_p),
-                    matrxi_size_bytes,
+                    matrix_size_bytes,
                     CudaMemcpyKind.HOST_TO_DEVICE,
                 )
                 cuda.memcpy(
                     c_ptr,
                     ctypes.cast(host_c, ctypes.c_void_p),
-                    matrxi_size_bytes,
+                    matrix_size_bytes,
                     CudaMemcpyKind.HOST_TO_DEVICE,
                 )
 
@@ -174,7 +174,7 @@ def run_cublaslt_identity_gemm_check(
                         c_layout=c_layout,
                         d_ptr=d_ptr,
                         d_layout=d_layout,
-                        heuristic=heursitic,
+                        heuristic=heuristic,
                         alpha=1.0,
                         beta=0.0,
                         workspace_ptr=workspace.raw_ptr,
@@ -186,7 +186,7 @@ def run_cublaslt_identity_gemm_check(
                 cuda.memcpy(
                     ctypes.cast(host_d, ctypes.c_void_p),
                     d_ptr,
-                    matrxi_size_bytes,
+                    matrix_size_bytes,
                     CudaMemcpyKind.DEVICE_TO_HOST,
                 )
                 cuda.synchronize()
@@ -210,8 +210,8 @@ def run_cublaslt_identity_gemm_check(
         tolerance=tolerance,
         workspace_bytes=workspace_bytes,
         flops_estimate=2 * size * size * size,
-        sample_actual=_sample_value(host_d, matrix_element),
-        sample_expected=_sample_value(host_a, matrix_element),
+        sample_actual=_sample_values(host_d, matrix_element),
+        sample_expected=_sample_values(host_a, matrix_element),
     )
     
 
