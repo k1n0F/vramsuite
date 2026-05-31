@@ -5,7 +5,7 @@ from types import TracebackType
 
 from vramsuite.backends.cublaslt.enums import (
     CUBLAS_COMPUTE_32F,
-    CUBLAS_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+    CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
     CUDA_R_32F,
 )
 from vramsuite.backends.cublaslt.errors import check_cublas_status
@@ -110,8 +110,11 @@ class MatrixLayout(CublasLtDescriptor):
             raise ValueError("rows must be positive")
         if self.cols <= 0:
             raise ValueError("cols must be positive")
+        if self.ld <= 0:
+            raise ValueError("ld must be positive")
         if self.ld < self.rows:
             raise ValueError("ld must be >= rows for column-major layout")
+        
         
         cublaslt = self._require_cublaslt()
 
@@ -194,11 +197,12 @@ class MatmulPreference(CublasLtDescriptor):
         pref = self._require_ptr()
 
         workspace_value = ctypes.c_uint64(value)
+        workspace_ptr = ctypes.cast(ctypes.byref(workspace_value), ctypes.c_void_p)
 
         status = cublaslt.cublasLtMatmulPreferenceSetAttribute(
             pref,
-            CUBLAS_MATMUL_PREF_MAX_WORKSPACE_BYTES,
-            ctypes.byref(workspace_value),
+            CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+            workspace_ptr,
             ctypes.sizeof(workspace_value),
         )
         check_cublas_status(status, "cublasLtMatmulPreferenceSetAttribute")
