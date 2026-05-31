@@ -36,7 +36,7 @@ class MatrixLayoutSpec:
     def validate(self) -> None:
         if self.rows <= 0:
             raise ValueError(f"{self.name}.rows must be positive")
-        if self.cols <=0:
+        if self.cols <= 0:
             raise ValueError(f"{self.name}.cols must be positive")
         if self.ld <= 0:
             raise ValueError(f"{self.name}.ld must be positive")
@@ -53,7 +53,7 @@ class MatrixLayoutSpec:
             data_type=self.data_type,
             rows=self.rows,
             cols=self.cols,
-            ld=self.ld
+            ld=self.ld,
         )
     
 
