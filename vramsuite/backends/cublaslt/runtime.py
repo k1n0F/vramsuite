@@ -66,6 +66,50 @@ def _configure_signatures(cublaslt: ctypes.CDLL) -> None:
     cublaslt.cublasLtGetVersion.argtypes = []
     cublaslt.cublasLtGetVersion.restype = ctypes.c_int
 
+    cublaslt.cublasLtMatmulDescCreate.argtypes = [
+        ctypes.POINTER(ctypes.c_void_p),   # matmulDesc
+        ctypes.c_int,                      # computeType
+        ctypes.c_int,                      # scaleType
+    ]
+    cublaslt.cublasLtMatmulDescCreate.restype = ctypes.c_int
+
+    cublaslt.cublasLtMatmulDescDestroy.argtypes = [
+        ctypes.c_void_p,                   # matmulDesc
+    ]
+    cublaslt.cublasLtMatmulDescDestroy.restype = ctypes.c_int
+
+    cublaslt.cublasLtMatrixLayoutCreate.argtypes = [
+        ctypes.POINTER(ctypes.c_void_p),   # matLayout
+        ctypes.c_int,                      # type
+        ctypes.c_uint64,                   # rows
+        ctypes.c_uint64,                   # cols
+        ctypes.c_int64,                    # ld
+    ]
+    cublaslt.cublasLtMatrixLayoutCreate.restype = ctypes.c_int
+
+    cublaslt.cublasLtMatrixLayoutDestroy.argtypes = [
+        ctypes.c_void_p,                   # matLayout
+    ]
+    cublaslt.cublasLtMatrixLayoutDestroy.restype = ctypes.c_int
+
+    cublaslt.cublasLtMatmulPreferenceCreate.argtypes = [
+        ctypes.POINTER(ctypes.c_void_p),   # pref
+    ]
+    cublaslt.cublasLtMatmulPreferenceCreate.restype = ctypes.c_int
+
+    cublaslt.cublasLtMatmulPreferenceDestroy.argtypes = [
+        ctypes.c_void_p,                   # pref
+    ]
+    cublaslt.cublasLtMatmulPreferenceDestroy.restype = ctypes.c_int
+
+    cublaslt.cublasLtMatmulPreferenceSetAttribute.argtypes = [
+        ctypes.c_void_p,                   # pref
+        ctypes.c_int,                      # attr
+        ctypes.c_void_p,                   # buf
+        ctypes.c_size_t,                   # sizeInBytes
+    ]
+    cublaslt.cublasLtMatmulPreferenceSetAttribute.restype = ctypes.c_int
+
 
 class CublasLtRuntime:
     def __init__(self) -> None:
