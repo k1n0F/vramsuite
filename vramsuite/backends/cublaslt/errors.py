@@ -5,7 +5,7 @@ CUBLAS_STATUS_SUCCESS = 0
 
 
 def decode_cublas_status(status: int) -> str:
-    know_statuses = {
+    known_statuses = {
         0: "CUBLAS_STATUS_SUCCESS",
         1: "CUBLAS_STATUS_NOT_INITIALIZED",
         3: "CUBLAS_STATUS_ALLOC_FAILED",
@@ -18,7 +18,7 @@ def decode_cublas_status(status: int) -> str:
         16: "CUBLAS_STATUS_LICENSE_ERROR",
     }
 
-    return know_statuses.get(status, f"CUBLAS_STATUS_UNKNOWN({status})")
+    return known_statuses.get(status, f"CUBLAS_STATUS_UNKNOWN({status})")
 
 
 
