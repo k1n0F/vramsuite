@@ -136,6 +136,26 @@ def _configure_signatures(cublaslt: ctypes.CDLL) -> None:
     ]
     cublaslt.cublasLtMatmulAlgoCheck.restype = ctypes.c_int
 
+    cublaslt.cublasLtMatmul.argtypes = [
+        ctypes.c_void_p,                   # lightHandle
+        ctypes.c_void_p,                   # computeDesc
+        ctypes.c_void_p,                   # alpha
+        ctypes.c_void_p,                   # A
+        ctypes.c_void_p,                   # Adesc
+        ctypes.c_void_p,                   # B
+        ctypes.c_void_p,                   # Bdesc
+        ctypes.c_void_p,                   # beta
+        ctypes.c_void_p,                   # C
+        ctypes.c_void_p,                   # Cdesc
+        ctypes.c_void_p,                   # D
+        ctypes.c_void_p,                   # Ddesc
+        ctypes.c_void_p,                   # algo
+        ctypes.c_void_p,                   # workspace
+        ctypes.c_size_t,                   # workspaceSizeInBytes
+        ctypes.c_void_p,                   # stream
+    ]
+    cublaslt.cublasLtMatmul.restype = ctypes.c_int
+
 
 class CublasLtRuntime:
     def __init__(self) -> None:

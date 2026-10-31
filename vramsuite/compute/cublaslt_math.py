@@ -192,14 +192,7 @@ def run_cublaslt_identity_gemm_check(
                 cuda.synchronize()
 
             finally:
-                if d_ptr is not None:
-                    cuda.free(d_ptr)
-                if c_ptr is not None:
-                    cuda.free(c_ptr)
-                if b_ptr is not None:
-                    cuda.free(b_ptr)
-                if a_ptr is not None:
-                    cuda.free(a_ptr)
+                cuda.free_all(d_ptr, c_ptr, b_ptr, a_ptr)
 
     max_error = _max_abs_error_against_a(host_d, host_a, matrix_element)
 

@@ -139,6 +139,7 @@ def run_torch_cuda_probe(
         )
     
     allocated_tensors: list[Any] = []
+    tensor = None
     allocated_mb = 0
     attempted_mb = 0
 
@@ -200,6 +201,8 @@ def run_torch_cuda_probe(
         )
     
     finally:
+        # `tensor` still references the last chunk; drop it or empty_cache() can't release it.
+        tensor = None
         allocated_tensors.clear()
         gc.collect()
 

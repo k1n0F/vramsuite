@@ -174,8 +174,13 @@ class MatmulPreference(CublasLtDescriptor):
             raise RuntimeError("cublasLtMatmulPreferenceCreate returned NULL descriptor")
         
         self.ptr = pref
-        
-        self.set_max_workspace_bytes(self.max_workspace_bytes)
+
+        try:
+            self.set_max_workspace_bytes(self.max_workspace_bytes)
+        except Exception:
+            # __exit__ is not called when __enter__ raises, so destroy here.
+            self.destroy()
+            raise
 
     def destroy(self) -> None:
         if self.ptr is None:

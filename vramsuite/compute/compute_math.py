@@ -125,12 +125,7 @@ def run_sgemm_sanity_check(tolerance: float = 1e-5) -> dict[str, Any]:
             cuda.synchronize()
 
         finally:
-            if c_ptr is not None:
-                cuda.free(c_ptr)
-            if b_ptr is not None:
-                cuda.free(b_ptr)
-            if a_ptr is not None:
-                cuda.free(a_ptr)
+            cuda.free_all(c_ptr, b_ptr, a_ptr)
 
     actual_column_major = [float(value) for value in host_c]
     error = max_abs_error(actual_column_major, expected_column_major)

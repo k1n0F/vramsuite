@@ -150,14 +150,19 @@ class CudaRuntime:
             venv_patterns=venv_patterns,
         )
 
-        loaded = self._native_library.__enter__()
-        
-        self.cudart = loaded.require_library()
-        self.library_path = loaded.library_path
-        
-        _configure_signatures(self.cudart)
+        try:
+            loaded = self._native_library.__enter__()
 
-        return self
+            self.cudart = loaded.require_library()
+            self.library_path = loaded.library_path
+
+            _configure_signatures(self.cudart)
+
+            return self
+
+        except Exception:
+            self.__exit__(None, None, None)
+            raise
     
     def __exit__(
         self,
@@ -252,6 +257,20 @@ class CudaRuntime:
 
         status = cudart.cudaFree(ptr)
         self._check_status(status, "cudaFree")
+
+    def free_all(self, *ptrs: ctypes.c_void_p | None) -> None:
+        """Free every pointer even if some frees fail; raise the first error afterwards."""
+        first_error: Exception | None = None
+
+        for ptr in ptrs:
+            try:
+                self.free(ptr)
+            except Exception as exc:
+                if first_error is None:
+                    first_error = exc
+
+        if first_error is not None:
+            raise first_error
 
 
     def memcpy(
