@@ -39,14 +39,20 @@ def _get_primary_nvml_gpu(nvml_info: dict[str, Any]) -> dict[str, Any]:
 
      if nvml_info.get("available") and devices:
         device = devices[0]
+        compute_capability = (device.get("details") or {}).get("compute_capability")
+        major, minor = (
+            (int(part) for part in compute_capability.split("."))
+            if compute_capability
+            else (None, None)
+        )
 
         return {
                 "index": device.get("index"),
                 "name": device.get("name"),
                 "total_vram_mb": device.get("total_vram_mb"),
-                "compute_capability": None,
-                "major": None,
-                "minor": None,
+                "compute_capability": compute_capability,
+                "major": major,
+                "minor": minor,
                 "multi_processor_count": None,
                 "source": "nvml",
         }
@@ -128,6 +134,40 @@ def _get_driver_memory(
         }
 
 
+def _get_device_profile(
+        nvml_info: dict[str, Any],
+        cuda_runtime_info: dict[str, Any],
+) -> dict[str, Any]:
+    """Hardware limits of the primary GPU, as needed for kernel design."""
+    devices = nvml_info.get("devices") or []
+    details = devices[0].get("details") if devices else None
+    attributes = cuda_runtime_info.get("attributes") or {}
+
+    memory_clock_khz = attributes.get("memory_clock_rate_khz")
+    bus_width_bits = attributes.get("global_memory_bus_width_bits")
+    smem_optin = attributes.get("max_shared_memory_per_block_optin")
+
+    # DDR formula (2 transfers per clock). Matches the 960 GB/s spec on RTX 5080
+    # (GDDR7); measure with a copy benchmark before trusting it on other cards.
+    theoretical_bandwidth_gb_s = (
+        round(memory_clock_khz * 1000 * 2 * bus_width_bits / 8 / 1e9, 1)
+        if memory_clock_khz and bus_width_bits
+        else None
+    )
+
+    return {
+        "nvml": details,
+        "nvml_system": nvml_info.get("system"),
+        "cuda_attributes": attributes or None,
+        "derived": {
+            "theoretical_bandwidth_gb_s": theoretical_bandwidth_gb_s,
+            "max_shared_memory_per_block_optin_kb": (
+                smem_optin / 1024 if smem_optin else None
+            ),
+        },
+    }
+
+
 def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]:
     """Create a basic system.vramcard dictionary."""
     if fingerprint is None:
@@ -149,12 +189,21 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
         nvml_info=nvml_info,
         primary_gpu=primary_gpu,
     )
+    # cudaMemGetInfo; on Windows WDDM it can exceed NVML free (WDDM may page
+    # other processes' VRAM out), so both are kept.
+    memory_info["cuda_runtime_free_mb"] = cuda_runtime_info.get("free_memory_mb")
+
+    device_profile = _get_device_profile(nvml_info, cuda_runtime_info)
+    cuda_runtime_summary = {
+        key: value for key, value in cuda_runtime_info.items() if key != "attributes"
+    }
 
     return {
         "schema": VRAMCARD_SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
 
         "gpu": primary_gpu,
+        "device": device_profile,
 
         "environment": runtime_info,
 
@@ -165,7 +214,7 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
             "torch_cuda_version": torch_info.get("cuda_version"),
             "cuda_device_count": torch_info.get("device_count"),
 
-            "cuda_runtime": cuda_runtime_info,
+            "cuda_runtime": cuda_runtime_summary,
             "cublas": cublas_info,
 
             "nvml_available": nvml_info.get("available"),

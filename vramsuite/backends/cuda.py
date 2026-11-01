@@ -30,6 +30,50 @@ class CudaRuntimeInfo:
     current_device: int | None
     free_memory_mb: int | None
     total_memory_mb: int | None
+    driver_version: int | None = None
+    driver_version_text: str | None = None
+    attributes: dict[str, int | None] | None = None
+
+
+# cudaDeviceAttr values (driver_types.h, CUDA 13.0).
+# Kernel-design relevant: these decide which tile sizes / launch configs fit.
+CUDA_DEVICE_ATTRIBUTES = {
+    "compute_capability_major": 75,
+    "compute_capability_minor": 76,
+    "multiprocessor_count": 16,
+    "warp_size": 10,
+    "max_threads_per_block": 1,
+    "max_threads_per_multiprocessor": 39,
+    "max_blocks_per_multiprocessor": 106,
+    "max_registers_per_block": 12,
+    "max_registers_per_multiprocessor": 82,
+    "max_shared_memory_per_block": 8,
+    "max_shared_memory_per_block_optin": 97,
+    "max_shared_memory_per_multiprocessor": 81,
+    "reserved_shared_memory_per_block": 111,
+    "total_constant_memory": 9,
+    "l2_cache_size": 38,
+    "max_persisting_l2_cache_size": 108,
+    "clock_rate_khz": 13,
+    "memory_clock_rate_khz": 36,
+    "global_memory_bus_width_bits": 37,
+    "async_engine_count": 40,
+    "unified_addressing": 41,
+    "can_map_host_memory": 19,
+    "concurrent_managed_access": 89,
+    "pageable_memory_access": 88,
+    "host_native_atomic_supported": 86,
+    "memory_pools_supported": 115,
+    "cooperative_launch": 95,
+    "cluster_launch": 120,
+    "compute_preemption_supported": 90,
+    "single_to_double_precision_perf_ratio": 87,
+    "ecc_enabled": 32,
+    "tcc_driver": 35,
+    "pci_bus_id": 33,
+    "pci_device_id": 34,
+}
+
 
 def _candidate_library_names() -> list[str]:
     system = platform.system()
@@ -129,6 +173,16 @@ def _configure_signatures(cudart: ctypes.CDLL) -> None:
     cudart.cudaDeviceSynchronize.argtypes = []
     cudart.cudaDeviceSynchronize.restype = ctypes.c_int
 
+    cudart.cudaDriverGetVersion.argtypes = [ctypes.POINTER(ctypes.c_int)]
+    cudart.cudaDriverGetVersion.restype = ctypes.c_int
+
+    cudart.cudaDeviceGetAttribute.argtypes = [
+        ctypes.POINTER(ctypes.c_int),      # value
+        ctypes.c_int,                      # cudaDeviceAttr
+        ctypes.c_int,                      # device
+    ]
+    cudart.cudaDeviceGetAttribute.restype = ctypes.c_int
+
 
 class CudaRuntime:
     def __init__(self):
@@ -201,6 +255,27 @@ class CudaRuntime:
 
         return int(version.value)
     
+    def driver_version(self) -> int:
+        cudart = self._require_cudart()
+
+        version = ctypes.c_int()
+        status = cudart.cudaDriverGetVersion(ctypes.byref(version))
+        self._check_status(status, "cudaDriverGetVersion")
+
+        return int(version.value)
+
+    def device_attributes(self, device_index: int) -> dict[str, int | None]:
+        """All CUDA_DEVICE_ATTRIBUTES; None for any the runtime rejects."""
+        cudart = self._require_cudart()
+        result: dict[str, int | None] = {}
+
+        for name, attr in CUDA_DEVICE_ATTRIBUTES.items():
+            value = ctypes.c_int()
+            status = cudart.cudaDeviceGetAttribute(ctypes.byref(value), attr, device_index)
+            result[name] = int(value.value) if status == CUDA_SUCCESS else None
+
+        return result
+
     def set_device(self, device_index: int) -> None:
         cudart = self._require_cudart()
 
@@ -351,6 +426,7 @@ class CudaRuntime:
         current_device = self.current_device()
 
         free_bytes, total_bytes = self.memory_info()
+        driver_version = self.driver_version()
 
         return CudaRuntimeInfo(
             available=True,
@@ -362,6 +438,9 @@ class CudaRuntime:
             current_device=current_device,
             free_memory_mb=int(free_bytes // 1024 // 1024),
             total_memory_mb=int(total_bytes // 1024 // 1024),
+            driver_version=driver_version,
+            driver_version_text=_format_runtime_version(driver_version),
+            attributes=self.device_attributes(device_index),
         )
     
     def device_count(self) -> int:

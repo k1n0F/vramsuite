@@ -19,6 +19,191 @@ class NvmlMemory(ctypes.Structure):
 
 
 
+class NvmlMemoryV2(ctypes.Structure):
+    _fields_ = [
+        ("version", ctypes.c_uint),
+        ("total", ctypes.c_ulonglong),
+        ("reserved", ctypes.c_ulonglong),
+        ("free", ctypes.c_ulonglong),
+        ("used", ctypes.c_ulonglong),
+    ]
+
+
+class NvmlPciInfo(ctypes.Structure):
+    _fields_ = [
+        ("busIdLegacy", ctypes.c_char * 16),
+        ("domain", ctypes.c_uint),
+        ("bus", ctypes.c_uint),
+        ("device", ctypes.c_uint),
+        ("pciDeviceId", ctypes.c_uint),
+        ("pciSubSystemId", ctypes.c_uint),
+        ("busId", ctypes.c_char * 32),
+    ]
+
+
+class NvmlUtilization(ctypes.Structure):
+    _fields_ = [
+        ("gpu", ctypes.c_uint),
+        ("memory", ctypes.c_uint),
+    ]
+
+
+# nvmlClockType_t
+NVML_CLOCK_GRAPHICS = 0
+NVML_CLOCK_SM = 1
+NVML_CLOCK_MEM = 2
+
+NVML_TEMPERATURE_GPU = 0
+
+NVML_ARCHITECTURES = {
+    2: "Kepler",
+    3: "Maxwell",
+    4: "Pascal",
+    5: "Volta",
+    6: "Turing",
+    7: "Ampere",
+    8: "Ada",
+    9: "Hopper",
+    10: "Blackwell",
+}
+
+NVML_DRIVER_MODELS = {0: "WDDM", 1: "TCC", 2: "MCDM"}
+
+
+def _call(nvml: ctypes.CDLL, name: str, *args: Any) -> bool:
+    """
+    Call an optional NVML getter.
+
+    False when the symbol is missing (older driver) or the value is not
+    available (WDDM / consumer GPUs hide some counters). All arguments here are
+    32-bit ints or pointers, so default ctypes conversion is ABI-safe.
+    """
+    try:
+        return getattr(nvml, name)(*args) == NVML_SUCCESS
+    except Exception:
+        return False
+
+
+def _uint(nvml: ctypes.CDLL, name: str, *args: Any) -> int | None:
+    value = ctypes.c_uint()
+    if _call(nvml, name, *args, ctypes.byref(value)):
+        return int(value.value)
+    return None
+
+
+def _string(nvml: ctypes.CDLL, name: str, *args: Any, size: int = 96) -> str | None:
+    buffer = ctypes.create_string_buffer(size)
+    if _call(nvml, name, *args, buffer, ctypes.c_uint(size)):
+        return buffer.value.decode("utf-8", errors="replace")
+    return None
+
+
+def _mw_to_w(value: int | None) -> float | None:
+    return None if value is None else value / 1000
+
+
+def _collect_system_info(nvml: ctypes.CDLL) -> dict[str, Any]:
+    cuda_driver = ctypes.c_int()
+    has_cuda_driver = _call(nvml, "nvmlSystemGetCudaDriverVersion_v2", ctypes.byref(cuda_driver))
+
+    return {
+        "driver_version": _string(nvml, "nvmlSystemGetDriverVersion", size=80),
+        "nvml_version": _string(nvml, "nvmlSystemGetNVMLVersion", size=80),
+        "cuda_driver_version": int(cuda_driver.value) if has_cuda_driver else None,
+        "cuda_driver_version_text": (
+            f"{cuda_driver.value // 1000}.{(cuda_driver.value % 1000) // 10}"
+            if has_cuda_driver
+            else None
+        ),
+    }
+
+
+def _collect_device_details(nvml: ctypes.CDLL, handle: ctypes.c_void_p) -> dict[str, Any]:
+    major = ctypes.c_int()
+    minor = ctypes.c_int()
+    has_cc = _call(
+        nvml,
+        "nvmlDeviceGetCudaComputeCapability",
+        handle,
+        ctypes.byref(major),
+        ctypes.byref(minor),
+    )
+
+    pci = NvmlPciInfo()
+    has_pci = _call(nvml, "nvmlDeviceGetPciInfo_v3", handle, ctypes.byref(pci))
+
+    memory_v2 = NvmlMemoryV2(version=ctypes.sizeof(NvmlMemoryV2) | (2 << 24))
+    has_memory_v2 = _call(nvml, "nvmlDeviceGetMemoryInfo_v2", handle, ctypes.byref(memory_v2))
+
+    bar1 = NvmlMemory()
+    has_bar1 = _call(nvml, "nvmlDeviceGetBAR1MemoryInfo", handle, ctypes.byref(bar1))
+
+    utilization = NvmlUtilization()
+    has_utilization = _call(
+        nvml, "nvmlDeviceGetUtilizationRates", handle, ctypes.byref(utilization)
+    )
+
+    driver_model_current = ctypes.c_int()
+    driver_model_pending = ctypes.c_int()
+    has_driver_model = _call(
+        nvml,
+        "nvmlDeviceGetDriverModel_v2",
+        handle,
+        ctypes.byref(driver_model_current),
+        ctypes.byref(driver_model_pending),
+    )
+
+    architecture = _uint(nvml, "nvmlDeviceGetArchitecture", handle)
+    display_active = _uint(nvml, "nvmlDeviceGetDisplayActive", handle)
+
+    return {
+        "uuid": _string(nvml, "nvmlDeviceGetUUID", handle),
+        "vbios_version": _string(nvml, "nvmlDeviceGetVbiosVersion", handle, size=32),
+        "architecture": NVML_ARCHITECTURES.get(architecture, architecture),
+        "compute_capability": f"{major.value}.{minor.value}" if has_cc else None,
+        "sm_arch": f"sm_{major.value}{minor.value}" if has_cc else None,
+        "cuda_cores": _uint(nvml, "nvmlDeviceGetNumGpuCores", handle),
+        "memory_bus_width_bits": _uint(nvml, "nvmlDeviceGetMemoryBusWidth", handle),
+        "memory_reserved_mb": _bytes_to_mb(memory_v2.reserved) if has_memory_v2 else None,
+        "bar1_total_mb": _bytes_to_mb(bar1.total) if has_bar1 else None,
+        "bar1_used_mb": _bytes_to_mb(bar1.used) if has_bar1 else None,
+        "display_active": None if display_active is None else bool(display_active),
+        "driver_model": (
+            NVML_DRIVER_MODELS.get(driver_model_current.value, driver_model_current.value)
+            if has_driver_model
+            else None
+        ),
+        "pci": {
+            "bus_id": pci.busId.decode("utf-8", errors="replace") if has_pci else None,
+            "device_id": f"0x{pci.pciDeviceId:08x}" if has_pci else None,
+            "subsystem_id": f"0x{pci.pciSubSystemId:08x}" if has_pci else None,
+            "link_gen_current": _uint(nvml, "nvmlDeviceGetCurrPcieLinkGeneration", handle),
+            "link_gen_max": _uint(nvml, "nvmlDeviceGetMaxPcieLinkGeneration", handle),
+            "link_width_current": _uint(nvml, "nvmlDeviceGetCurrPcieLinkWidth", handle),
+            "link_width_max": _uint(nvml, "nvmlDeviceGetMaxPcieLinkWidth", handle),
+            "link_speed_mbps": _uint(nvml, "nvmlDeviceGetPcieSpeed", handle),
+        },
+        "clocks_mhz": {
+            "graphics": _uint(nvml, "nvmlDeviceGetClockInfo", handle, NVML_CLOCK_GRAPHICS),
+            "sm": _uint(nvml, "nvmlDeviceGetClockInfo", handle, NVML_CLOCK_SM),
+            "memory": _uint(nvml, "nvmlDeviceGetClockInfo", handle, NVML_CLOCK_MEM),
+            "graphics_max": _uint(nvml, "nvmlDeviceGetMaxClockInfo", handle, NVML_CLOCK_GRAPHICS),
+            "sm_max": _uint(nvml, "nvmlDeviceGetMaxClockInfo", handle, NVML_CLOCK_SM),
+            "memory_max": _uint(nvml, "nvmlDeviceGetMaxClockInfo", handle, NVML_CLOCK_MEM),
+        },
+        "power_w": {
+            "usage": _mw_to_w(_uint(nvml, "nvmlDeviceGetPowerUsage", handle)),
+            "limit": _mw_to_w(_uint(nvml, "nvmlDeviceGetEnforcedPowerLimit", handle)),
+        },
+        "temperature_c": _uint(nvml, "nvmlDeviceGetTemperature", handle, NVML_TEMPERATURE_GPU),
+        "fan_speed_percent": _uint(nvml, "nvmlDeviceGetFanSpeed", handle),
+        "utilization_percent": {
+            "gpu": utilization.gpu if has_utilization else None,
+            "memory": utilization.memory if has_utilization else None,
+        },
+    }
+
+
 @dataclass(frozen=True)
 class NvmlDeviceInfo:
     index: int
@@ -36,6 +221,7 @@ class NvmlInfo:
     error: str | None
     device_count: int
     devices: list[dict[str, Any]]
+    system: dict[str, Any] | None = None
 
 
 def _bytes_to_mb(value: int | None) -> int | None:
@@ -165,13 +351,16 @@ def collect_nvml_info() -> NvmlInfo:
                     used_vram_mb=_bytes_to_mb(memory.used),
                 )
 
-                devices.append(asdict(device))
+                device_dict = asdict(device)
+                device_dict["details"] = _collect_device_details(nvml, handle)
+                devices.append(device_dict)
 
             return NvmlInfo(
                 available=True,
                 error=None,
                 device_count=len(devices),
                 devices=devices,
+                system=_collect_system_info(nvml),
             )
 
         finally:
