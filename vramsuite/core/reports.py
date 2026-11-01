@@ -232,6 +232,40 @@ def print_model_table(console: Console, model_info: dict[str, Any]) -> None:
     console.print(components)
 
 
+def print_processes_table(console: Console, info: dict[str, Any], watched: bool) -> None:
+    """Print per-process VRAM usage of one GPU."""
+    gpu = info["gpu"]
+    title = f"GPU {gpu['index']} {gpu['name']}: processes ({info['source']}, {info['samples']} samples)"
+
+    table = Table(title=title)
+    table.add_column("PID", style="bold")
+    table.add_column("Process")
+    table.add_column("Dedicated MB", justify="right")
+    if watched:
+        table.add_column("Peak MB", justify="right")
+    table.add_column("Shared MB", justify="right")
+    table.add_column("Command", overflow="fold")
+
+    for row in info["processes"]:
+        cells = [
+            str(row["pid"]),
+            row["name"] or "[dim]<protected>[/dim]",
+            str(row["dedicated_mb"]),
+        ]
+        if watched:
+            cells.append(str(row["peak_dedicated_mb"]))
+        cells += [str(row["shared_mb"]), (row["command_line"] or "")[:120]]
+        table.add_row(*cells)
+
+    console.print(table)
+    console.print(
+        f"NVML used: {gpu['nvml_used_mb']} MB of {gpu['total_mb']} MB. "
+        f"Sum over processes: {info['processes_sum_mb']} MB "
+        "[dim](can exceed physical usage on Windows: shared surfaces are counted "
+        "in several processes, paged-out allocations are included)[/dim]"
+    )
+
+
 def print_risk_table(console: Console, risk_info: dict[str, Any] | None) -> None:
     """Print OOM risk estimate results."""
     if risk_info is None:

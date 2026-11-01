@@ -417,3 +417,88 @@ def collect_nvml_info() -> NvmlInfo:
 
 def collect_nvml_info_dict() -> dict[str, Any]:
     return asdict(collect_nvml_info())
+
+class NvmlProcessInfo(ctypes.Structure):
+    _fields_ = [
+        ("pid", ctypes.c_uint),
+        ("usedGpuMemory", ctypes.c_ulonglong),
+        ("gpuInstanceId", ctypes.c_uint),
+        ("computeInstanceId", ctypes.c_uint),
+    ]
+
+
+NVML_ERROR_INSUFFICIENT_SIZE = 7
+NVML_VALUE_NOT_AVAILABLE = 0xFFFFFFFFFFFFFFFF
+
+
+def _running_processes(nvml: ctypes.CDLL, name: str, handle: ctypes.c_void_p) -> dict[int, int | None]:
+    """{pid: used bytes or None}. Under WDDM the bytes are always unavailable."""
+    function = getattr(nvml, name, None)
+    if function is None:
+        return {}
+
+    count = ctypes.c_uint(0)
+    status = function(handle, ctypes.byref(count), None)
+    if status == NVML_SUCCESS:
+        return {}
+    if status != NVML_ERROR_INSUFFICIENT_SIZE:
+        raise RuntimeError(f"{name} failed with NVML error code {status}")
+
+    # Processes can start between the two calls; leave headroom.
+    count = ctypes.c_uint(count.value + 16)
+    infos = (NvmlProcessInfo * count.value)()
+    status = function(handle, ctypes.byref(count), infos)
+    if status != NVML_SUCCESS:
+        raise RuntimeError(f"{name} failed with NVML error code {status}")
+
+    return {
+        int(info.pid): (
+            None if info.usedGpuMemory == NVML_VALUE_NOT_AVAILABLE else int(info.usedGpuMemory)
+        )
+        for info in infos[: count.value]
+    }
+
+
+def collect_nvml_gpu_processes(device_index: int = 0) -> dict[str, Any]:
+    """
+    One GPU's identity, memory and the processes using it (compute + graphics).
+
+    Kept separate from collect_nvml_info so a watch loop does not query
+    clocks, PCIe and power on every sample.
+    """
+    nvml = _load_nvml()
+    _check_nvml_result(nvml.nvmlInit_v2(), "nvmlInit_v2")
+
+    try:
+        handle = ctypes.c_void_p()
+        _check_nvml_result(
+            nvml.nvmlDeviceGetHandleByIndex_v2(ctypes.c_uint(device_index), ctypes.byref(handle)),
+            "nvmlDeviceGetHandleByIndex_v2",
+        )
+
+        name = ctypes.create_string_buffer(256)
+        nvml.nvmlDeviceGetName(handle, name, ctypes.c_uint(len(name)))
+
+        memory = NvmlMemory()
+        _check_nvml_result(
+            nvml.nvmlDeviceGetMemoryInfo(handle, ctypes.byref(memory)), "nvmlDeviceGetMemoryInfo"
+        )
+
+        pci = NvmlPciInfo()
+        _check_nvml_result(nvml.nvmlDeviceGetPciInfo_v3(handle, ctypes.byref(pci)), "nvmlDeviceGetPciInfo_v3")
+
+        processes = _running_processes(nvml, "nvmlDeviceGetGraphicsRunningProcesses_v3", handle)
+        # Compute entries win: on Linux they carry the CUDA allocation size.
+        processes.update(_running_processes(nvml, "nvmlDeviceGetComputeRunningProcesses_v3", handle))
+
+        return {
+            "index": device_index,
+            "name": name.value.decode("utf-8", errors="replace"),
+            "pci": {"domain": pci.domain, "bus": pci.bus, "device": pci.device},
+            "total_bytes": int(memory.total),
+            "used_bytes": int(memory.used),
+            "processes": processes,
+        }
+
+    finally:
+        nvml.nvmlShutdown()

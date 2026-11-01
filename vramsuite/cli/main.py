@@ -17,6 +17,7 @@ from vramsuite.core.doctor import run_doctor
 from vramsuite.core.vramcard import load_vramcard, save_vramcard
 from vramsuite.core.compare import compare_vramcards
 from vramsuite.core.model_inspect import ModelInspectError, inspect_model
+from vramsuite.core.processes import snapshot_gpu_processes, watch_gpu_processes
 
 
 
@@ -32,6 +33,7 @@ from vramsuite.core.reports import (
     print_risk_table,
     print_compute_check_table,
     print_model_table,
+    print_processes_table,
     print_vramcard_compare_table,
 )
 
@@ -216,6 +218,51 @@ def inspect(
         return
 
     print_model_table(console, model_info)
+
+
+@app.command()
+def processes(
+    watch: float = typer.Option(
+        0,
+        "--watch",
+        "-w",
+        help="Sample for this many seconds and report each process's peak (Ctrl+C stops early).",
+    ),
+    interval: float = typer.Option(
+        0.5,
+        "--interval",
+        help="Seconds between samples in --watch mode.",
+    ),
+    gpu: int = typer.Option(
+        0,
+        "--gpu",
+        help="NVML device index.",
+    ),
+    min_mb: float = typer.Option(
+        1.0,
+        "--min-mb",
+        help="Hide processes whose (peak) dedicated memory is below this.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the result as JSON.",
+    ),
+) -> None:
+    """Show VRAM used by each process on a GPU (observed from outside)."""
+    if watch > 0:
+        with console.status(f"Watching GPU {gpu} for {watch:g}s (Ctrl+C to stop early)..."):
+            info = watch_gpu_processes(
+                seconds=watch, interval=interval, device_index=gpu, min_mb=min_mb
+            )
+    else:
+        info = snapshot_gpu_processes(device_index=gpu, min_mb=min_mb)
+
+    if json_output:
+        console.print_json(json.dumps(info, indent=2, ensure_ascii=False))
+        return
+
+    print_processes_table(console, info, watched=watch > 0)
 
 
 if __name__ == "__main__":
