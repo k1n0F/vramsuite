@@ -70,6 +70,7 @@ CUDA_DEVICE_ATTRIBUTES = {
     "single_to_double_precision_perf_ratio": 87,
     "ecc_enabled": 32,
     "tcc_driver": 35,
+    "pci_domain_id": 50,
     "pci_bus_id": 33,
     "pci_device_id": 34,
 }
