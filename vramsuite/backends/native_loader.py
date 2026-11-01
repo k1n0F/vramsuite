@@ -4,6 +4,7 @@ import ctypes
 import ctypes.util
 import os
 import platform
+import sys
 from dataclasses import  dataclass
 from pathlib import Path
 from types import TracebackType
@@ -54,8 +55,21 @@ class LoadedNativeLibrary:
         
         return self.library
     
+    def _toolkit_candidates(self) -> list[str]:
+        """Full paths inside the CUDA Toolkit (CUDA 13 on Windows keeps DLLs in bin/x64)."""
+        root = os.environ.get("CUDA_PATH") or os.environ.get("CUDA_HOME") or "/usr/local/cuda"
+        dirs = [Path(root) / "bin" / "x64", Path(root) / "bin", Path(root) / "lib64"]
+
+        return [
+            str(directory / name)
+            for directory in dirs
+            for name in self.candidates
+            if (directory / name).exists()
+        ]
+
     def _venv_candidates(self) -> list[str]:
-        venv = Path(".venv")
+        # The active interpreter's environment, not ".venv" relative to the cwd.
+        venv = Path(sys.prefix)
 
         if not venv.exists():
             return []
@@ -69,7 +83,8 @@ class LoadedNativeLibrary:
         return results
         
     def _build_candidate_list(self) -> list[str]:
-        results: list[str] = []
+        # Toolkit first so we never silently depend on DLLs shipped inside torch wheels.
+        results: list[str] = self._toolkit_candidates()
 
         found = ctypes.util.find_library(self.logical_name)
         if found:
@@ -111,6 +126,10 @@ class LoadedNativeLibrary:
             
             except OSError as exc:
                 errors.append(f"{candidate}: {exc}")
+
+                if self._dll_directory_handle is not None:
+                    self._dll_directory_handle.close()
+                    self._dll_directory_handle = None
 
         message = (
             f"{self.logical_name} native library could not found. Tried: "

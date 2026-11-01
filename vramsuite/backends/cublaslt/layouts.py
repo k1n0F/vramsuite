@@ -115,6 +115,42 @@ class MatmulLayoutSpec:
             ),
         )
     
+    @classmethod
+    def fp8_column_major_tn(
+        cls,
+        *,
+        m: int,
+        n: int,
+        k: int,
+        a_type: int,
+        b_type: int,
+    ) -> "MatmulLayoutSpec":
+        """
+        Column-major TN GEMM for FP8 inputs (the layout cuBLASLt requires for FP8):
+
+            D = A^T @ B
+
+        A: k x m stored (transposed by the op), FP8
+        B: k x n, FP8
+        C/D: m x n, FP32
+
+        m and k must be multiples of 16.
+        """
+
+        shape = GemmShape(m=m, n=n, k=k)
+        shape.validate()
+
+        if m % 16 or k % 16:
+            raise ValueError("FP8 GEMM requires m and k to be multiples of 16")
+
+        return cls(
+            shape=shape,
+            a=MatrixLayoutSpec(name="A", rows=k, cols=m, ld=k, data_type=a_type),
+            b=MatrixLayoutSpec(name="B", rows=k, cols=n, ld=k, data_type=b_type),
+            c=MatrixLayoutSpec(name="C", rows=m, cols=n, ld=m, data_type=CUDA_R_32F),
+            d=MatrixLayoutSpec(name="D", rows=m, cols=n, ld=m, data_type=CUDA_R_32F),
+        )
+
     def validate(self) -> None:
         self.shape.validate()
         self.a.validate()

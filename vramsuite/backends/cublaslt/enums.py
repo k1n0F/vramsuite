@@ -16,7 +16,10 @@ CUDA_R_8U = 8
 CUDA_R_32I = 10
 CUDA_R_32U = 11
 CUDA_R_16BF = 14
-CUDA_R_4F_E2M1 = 16
+CUDA_R_8F_E4M3 = 28
+CUDA_R_8F_E5M2 = 29
+CUDA_R_8F_UE8M0 = 30
+CUDA_R_4F_E2M1 = 33
 
 
 # cublasComputeType_t
@@ -37,6 +40,11 @@ CUBLAS_COMPUTE_32F_FAST_TF32 = 77
 CUBLAS_OP_N = 0
 CUBLAS_OP_T = 1
 CUBLAS_OP_C = 2
+
+
+# cublasLtMatmulDescAttributes_t
+CUBLASLT_MATMUL_DESC_TRANSA = 3
+CUBLASLT_MATMUL_DESC_TRANSB = 4
 
 
 # cublasLtMatmulPreferenceAttributes_t

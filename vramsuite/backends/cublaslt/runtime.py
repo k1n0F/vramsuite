@@ -32,13 +32,13 @@ def _candidate_library_names() -> list[str]:
     
     if system == "Linux":
         return [
-            "libcublaslt.so",
-            "libcublaslt.so.13",
-            "libcublaslt.so.12",
-            "libcublaslt.so.11",
+            "libcublasLt.so",
+            "libcublasLt.so.13",
+            "libcublasLt.so.12",
+            "libcublasLt.so.11",
         ]
     
-    return ["libcublaslt.so"]
+    return ["libcublasLt.so"]
 
 
 def _format_cublaslt_version(version: int | None) -> str | None:
@@ -77,6 +77,14 @@ def _configure_signatures(cublaslt: ctypes.CDLL) -> None:
         ctypes.c_void_p,                   # matmulDesc
     ]
     cublaslt.cublasLtMatmulDescDestroy.restype = ctypes.c_int
+
+    cublaslt.cublasLtMatmulDescSetAttribute.argtypes = [
+        ctypes.c_void_p,                   # matmulDesc
+        ctypes.c_int,                      # attr
+        ctypes.c_void_p,                   # buf
+        ctypes.c_size_t,                   # sizeInBytes
+    ]
+    cublaslt.cublasLtMatmulDescSetAttribute.restype = ctypes.c_int
 
     cublaslt.cublasLtMatrixLayoutCreate.argtypes = [
         ctypes.POINTER(ctypes.c_void_p),   # matLayout
@@ -168,7 +176,7 @@ class CublasLtRuntime:
         venv_patterns = (
             ["cublaslt*.dll"]
             if platform.system() == "Windows"
-            else ["libcublaslt.so*"]
+            else ["libcublasLt.so*"]
         )
 
         self._native_library = load_native_library(

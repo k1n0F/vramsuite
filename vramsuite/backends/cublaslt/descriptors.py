@@ -5,6 +5,9 @@ from types import TracebackType
 
 from vramsuite.backends.cublaslt.enums import (
     CUBLAS_COMPUTE_32F,
+    CUBLAS_OP_N,
+    CUBLASLT_MATMUL_DESC_TRANSA,
+    CUBLASLT_MATMUL_DESC_TRANSB,
     CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
     CUDA_R_32F,
 )
@@ -50,10 +53,14 @@ class MatmulDesc(CublasLtDescriptor):
         *,
         compute_type: int = CUBLAS_COMPUTE_32F,
         scale_type: int = CUDA_R_32F,
+        transa: int = CUBLAS_OP_N,
+        transb: int = CUBLAS_OP_N,
     ) -> None:
         super().__init__(runtime)
         self.compute_type = compute_type
         self.scale_type = scale_type
+        self.transa = transa
+        self.transb = transb
 
     def create(self) -> None:
         if self.ptr is not None:
@@ -71,8 +78,29 @@ class MatmulDesc(CublasLtDescriptor):
 
         if desc.value is None:
             raise RuntimeError("cublasLtMatmulDescCreate returned NULL descriptor")
-        
+
         self.ptr = desc
+
+        try:
+            self.set_int32_attribute(CUBLASLT_MATMUL_DESC_TRANSA, self.transa)
+            self.set_int32_attribute(CUBLASLT_MATMUL_DESC_TRANSB, self.transb)
+        except Exception:
+            # __exit__ is not called when __enter__ raises, so destroy here.
+            self.destroy()
+            raise
+
+    def set_int32_attribute(self, attr: int, value: int) -> None:
+        cublaslt = self._require_cublaslt()
+        desc = self._require_ptr()
+
+        raw = ctypes.c_int32(value)
+        status = cublaslt.cublasLtMatmulDescSetAttribute(
+            desc,
+            attr,
+            ctypes.cast(ctypes.byref(raw), ctypes.c_void_p),
+            ctypes.sizeof(raw),
+        )
+        check_cublas_status(status, "cublasLtMatmulDescSetAttribute")
 
     def destroy(self) -> None:
         if self.ptr is None:
