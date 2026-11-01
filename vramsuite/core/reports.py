@@ -198,6 +198,40 @@ def print_compute_check_table(console: Console, compute_info: dict[str, Any] | N
     console.print(table)
 
 
+def print_model_table(console: Console, model_info: dict[str, Any]) -> None:
+    """Print weight sizes of an inspected model file."""
+    summary = Table(title="Model")
+    summary.add_column("Field", style="bold")
+    summary.add_column("Value")
+
+    files = model_info.get("files") or []
+    summary.add_row("Path", str(model_info.get("path")))
+    summary.add_row("Files", str(len(files)))
+    summary.add_row("Tensors", str(model_info.get("tensor_count")))
+    summary.add_row("Parameters", f"{model_info.get('total_params', 0) / 1e9:.3f} B")
+    summary.add_row("Weights MB", str(model_info.get("total_mb")))
+    console.print(summary)
+
+    dtypes = Table(title="Weights by dtype")
+    dtypes.add_column("Dtype", style="bold")
+    dtypes.add_column("Tensors")
+    dtypes.add_column("Params")
+    dtypes.add_column("MB")
+    for name, item in (model_info.get("by_dtype") or {}).items():
+        dtypes.add_row(name, str(item["tensors"]), str(item["params"]), str(item["mb"]))
+    console.print(dtypes)
+
+    components = Table(title="Weights by component (first name segment)")
+    components.add_column("Component", style="bold")
+    components.add_column("MB")
+    for name, size_mb in (model_info.get("components_mb") or {}).items():
+        components.add_row(name, str(size_mb))
+    other = model_info.get("other_components") or 0
+    if other:
+        components.add_row(f"... {other} more", "")
+    console.print(components)
+
+
 def print_risk_table(console: Console, risk_info: dict[str, Any] | None) -> None:
     """Print OOM risk estimate results."""
     if risk_info is None:

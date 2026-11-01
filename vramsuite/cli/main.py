@@ -16,6 +16,7 @@ from rich.console import Console
 from vramsuite.core.doctor import run_doctor
 from vramsuite.core.vramcard import load_vramcard, save_vramcard
 from vramsuite.core.compare import compare_vramcards
+from vramsuite.core.model_inspect import ModelInspectError, inspect_model
 
 
 
@@ -30,6 +31,7 @@ from vramsuite.core.reports import (
     print_probe_table,
     print_risk_table,
     print_compute_check_table,
+    print_model_table,
     print_vramcard_compare_table,
 )
 
@@ -189,6 +191,32 @@ def compare(
         return
     
     print_vramcard_compare_table(console, comparison)
+
+@app.command()
+def inspect(
+    path: Path = typer.Argument(
+        ...,
+        help="A .safetensors file or a directory of .safetensors shards.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the inspection result as JSON.",
+    ),
+) -> None:
+    """Show exact weight sizes of a model file without loading it."""
+    try:
+        model_info = inspect_model(path)
+    except (ModelInspectError, OSError) as exc:
+        console.print(f"[red]Cannot inspect model:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    if json_output:
+        console.print_json(json.dumps(model_info, indent=2, ensure_ascii=False))
+        return
+
+    print_model_table(console, model_info)
+
 
 if __name__ == "__main__":
     app()
