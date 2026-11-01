@@ -20,7 +20,6 @@ from vramsuite.core.compare import compare_vramcards
 
 
 from vramsuite.core.reports import (
-    print_cuda_devices_table,
     print_doctor_header,
     print_nvml_devices_table,
     print_nvml_table,
@@ -30,6 +29,7 @@ from vramsuite.core.reports import (
     print_vramcard_memory_table,
     print_probe_table,
     print_risk_table,
+    print_compute_check_table,
     print_vramcard_compare_table,
 )
 
@@ -102,6 +102,11 @@ def doctor(
         "--probe-max-free-ratio",
         help="Maximum fraction of currently free VRAM that the probe may attempt to allocate.",
     ),
+    compute_check: bool = typer.Option(
+        False,
+        "--compute-check",
+        help="Run native cuBLAS / cuBLASLt (FP32, FP8) correctness checks.",
+    ),
 ) -> None:
     """Show basic VRAM Suite diagnostic information."""
     doctor_results = run_doctor(
@@ -111,6 +116,7 @@ def doctor(
         probe_floor_mb=probe_free_floor_mb,
         estimate_mb=estimate_mb,
         probe_max_free_ratio=probe_max_free_ratio,
+        with_compute_check=compute_check,
     )
 
     runtime = doctor_results["runtime"]
@@ -129,8 +135,8 @@ def doctor(
     print_nvml_devices_table(console, nvml_info)
     print_vramcard_memory_table(console, memory_info)
     print_probe_table(console, probe_info)
-    print_cuda_devices_table(console, torch_info)
     print_risk_table(console, risk_info)
+    print_compute_check_table(console, doctor_results.get("compute_check"))
     if verbose:
         print_verbose_table(console, runtime, vramcard)
 

@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from types import TracebackType
 from typing import Any
 
+from vramsuite.backends.cublaslt.errors import decode_cublas_status
 from vramsuite.backends.native_loader import load_native_library
 
 
@@ -46,28 +47,11 @@ def _candidate_library_names() -> list[str]:
     return ["libcublas.so"]
 
 
-def _decode_cublas_status(status: int) -> str:
-    known_statuses = {
-        0: "CUBLAS_STATUS_SUCCESS",
-        1: "CUBLAS_STATUS_NOT_INITIALIZED",
-        3: "CUBLAS_STATUS_ALLOC_FAILED",
-        7: "CUBLAS_STATUS_INVALID_VALUE",
-        8: "CUBLAS_STATUS_ARCH_MISMATCH",
-        11: "CUBLAS_STATUS_MAPPING_ERROR",
-        13: "CUBLAS_STATUS_EXECUTION_FAILED",
-        14: "CUBLAS_STATUS_INTERNAL_ERROR",
-        15: "CUBLAS_STATUS_NOT_SUPPORTED",
-        16: "CUBLAS_STATUS_LICENSE_ERROR",
-    }
-
-    return known_statuses.get(status, f"CUBLAS_STATUS_UNKNOWN({status})")
-
-
 def _check(status: int, operation: str) -> str | None:
     if status == CUBLAS_STATUS_SUCCESS:
         return None
 
-    return f"{operation} failed: {_decode_cublas_status(status)}"
+    return f"{operation} failed: {decode_cublas_status(status)}"
 
 def _format_cublas_version(version: int | None) -> str | None:
     if version is None:

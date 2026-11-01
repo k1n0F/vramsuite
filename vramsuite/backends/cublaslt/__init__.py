@@ -24,7 +24,7 @@ from vramsuite.backends.cublaslt.heuristics import (
     select_matmul_algorithm,
 )
 
-from vramsuite.backends.cublaslt.matmul import run_cublaslt_matmul_fp32
+from vramsuite.backends.cublaslt.matmul import run_cublaslt_matmul
 
 __all__ = [
     "CublasLtInfo",
@@ -40,5 +40,5 @@ __all__ = [
     "DeviceWorkspace",
     "RawMatmulHeuristic",
     "select_matmul_algorithm",
-    "run_cublaslt_matmul_fp32",
+    "run_cublaslt_matmul",
 ]

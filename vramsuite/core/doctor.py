@@ -12,8 +12,42 @@ from typing import Any
 
 from vramsuite.core.fingerprint import collect_fingerprint
 from vramsuite.core.vramcard import create_vramcard
-from vramsuite.core.probe import probe_result_to_dict, run_torch_cuda_probe
+from vramsuite.core.probe import probe_result_to_dict, run_cuda_probe
 from vramsuite.core.risk import estimate_oom_risk, risk_estimate_to_dict
+
+
+def run_compute_checks() -> dict[str, Any]:
+    """
+    Native correctness checks of the compute stack (no torch).
+
+    Each check is isolated: one failing library (e.g. no FP8 on pre-Ada GPUs)
+    is recorded as an error and does not hide the others.
+    """
+    from vramsuite.compute.compute_math import run_sgemm_sanity_check
+    from vramsuite.compute.cublaslt_math import (
+        run_cublaslt_fp8_gemm_check,
+        run_cublaslt_identity_gemm_check,
+    )
+
+    checks = {
+        "cublas_sgemm_fp32": run_sgemm_sanity_check,
+        "cublaslt_gemm_fp32": lambda: run_cublaslt_identity_gemm_check(size=256),
+        "cublaslt_gemm_fp8_e4m3": lambda: run_cublaslt_fp8_gemm_check(size=128),
+    }
+
+    results: dict[str, Any] = {}
+    for name, check in checks.items():
+        try:
+            result = check()
+            results[name] = {
+                "passed": result["passed"],
+                "max_abs_error": result["max_abs_error"],
+                "error": None,
+            }
+        except Exception as exc:
+            results[name] = {"passed": False, "max_abs_error": None, "error": str(exc)}
+
+    return results
 
 def run_doctor(
         with_probe: bool = False,
@@ -22,6 +56,7 @@ def run_doctor(
         probe_floor_mb: int = 2048,
         probe_max_free_ratio: float = 0.9,
         estimate_mb: int | None = None,
+        with_compute_check: bool = False,
 ) -> dict[str, Any]:
     """
     Run VRAM Suite doctor diagnostics and return structured data.
@@ -53,7 +88,7 @@ def run_doctor(
     risk_info: dict[str, Any] | None = None
 
     if with_probe:
-        probe_result = run_torch_cuda_probe(
+        probe_result = run_cuda_probe(
             driver_free_mb=memory_info.get("driver_free_at_scan_mb"),
             max_probe_mb=probe_max_mb,
             step_mb=probe_step_mb,
@@ -70,6 +105,12 @@ def run_doctor(
         vramcard["memory"] = memory_info
         vramcard["probe"] = probe_info
 
+
+    compute_info: dict[str, Any] | None = None
+
+    if with_compute_check:
+        compute_info = run_compute_checks()
+        vramcard["compute_check"] = compute_info
 
     if estimate_mb is not None:
         risk_result = estimate_oom_risk(
@@ -89,4 +130,5 @@ def run_doctor(
             "memory": memory_info,
             "probe": probe_info,
             "risk_estimate": risk_info,
+            "compute_check": compute_info,
         }

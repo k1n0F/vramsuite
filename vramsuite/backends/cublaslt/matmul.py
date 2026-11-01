@@ -4,20 +4,11 @@ import ctypes
 
 from vramsuite.backends.cublaslt.descriptors import MatmulDesc, MatrixLayout
 from vramsuite.backends.cublaslt.errors import check_cublas_status
-from vramsuite.backends.cublaslt.heuristics import RawMatmulHeuristic
+from vramsuite.backends.cublaslt.heuristics import RawMatmulHeuristic, _require_descriptor_ptr
 from vramsuite.backends.cublaslt.runtime import CublasLtRuntime
 
 
-def _require_descriptor_ptr(descriptor: object, name: str) -> ctypes.c_void_p:
-    ptr = getattr(descriptor, "ptr", None)
-
-    if ptr is None or ptr.value is None:
-        raise RuntimeError(f"{name} descriptor is not created")
-    
-    return ptr
-
-
-def run_cublaslt_matmul_fp32(
+def run_cublaslt_matmul(
         runtime: CublasLtRuntime,
         *,
         operation_desc: MatmulDesc,

@@ -130,29 +130,6 @@ def print_vramcard_memory_table(console: Console, memory_info: dict[str, Any]) -
     console.print(table)
 
 
-def print_cuda_devices_table(console: Console, torch_info: dict[str, Any]) -> None:
-    """Print CUDA devices detected by PyTorch."""
-    devices = torch_info.get("devices") or []
-
-    if not devices:
-        return
-    
-    table = Table(title="CUDA Devices")
-    table.add_column("Index", style="bold")
-    table.add_column("Name")
-    table.add_column("VRAM MB")
-    table.add_column("SM")
-
-    for device in devices:
-        table.add_row(
-            str(device.get("index")),
-            str(device.get("name")),
-            str(device.get("total_vram_mb")),
-            str(device.get("compute_capability")),
-        )
-
-    console.print(table)
-
 def print_verbose_table(
     console: Console,
     runtime_info: dict[str, Any],
@@ -194,6 +171,29 @@ def print_probe_table(console: Console, probe_info: dict[str, Any] | None) -> No
     notes = probe_info.get("notes") or []
     if notes:
         table.add_row("Notes", " | ".join(str(note) for note in notes))
+
+    console.print(table)
+
+
+def print_compute_check_table(console: Console, compute_info: dict[str, Any] | None) -> None:
+    """Print native compute stack check results."""
+    if compute_info is None:
+        return
+
+    table = Table(title="Compute Check")
+    table.add_column("Check", style="bold")
+    table.add_column("Passed")
+    table.add_column("Max abs error")
+    table.add_column("Error")
+
+    for name, result in compute_info.items():
+        passed = result.get("passed")
+        table.add_row(
+            name,
+            "[green]True[/green]" if passed else "[red]False[/red]",
+            str(result.get("max_abs_error")),
+            str(result.get("error") or ""),
+        )
 
     console.print(table)
 

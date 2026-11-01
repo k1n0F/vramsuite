@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import importlib.metadata
+
 from vramsuite.core.doctor import run_doctor
 from vramsuite.core.fingerprint import collect_fingerprint
 from vramsuite.core.vramcard import create_vramcard, load_vramcard, save_vramcard
 
-__version__ = "0.1.0-alpha"
+__version__ = importlib.metadata.version("vramsuite")
 
 __all__ = [
     "__version__",

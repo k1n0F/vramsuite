@@ -14,12 +14,15 @@ VRAM Suite currently provides:
 - Public Python API through `import vramsuite`
 - Structured doctor API through `run_doctor()`
 - System/runtime fingerprint collection
-- Optional PyTorch/CUDA detection
+- PyTorch detection from package metadata (torch is never imported)
 - NVIDIA GPU memory detection through NVML using `ctypes`
-- Driver-level VRAM information without requiring PyTorch
+- Detailed native GPU profile: architecture, compute capability, SM count,
+  shared memory / register / L2 limits, PCIe link, clocks, power, temperature
+- NVML and CUDA devices matched by PCI address (safe on multi-GPU systems)
 - `.vramcard` JSON profile generation
 - Rich terminal reports
-- Optional bounded CUDA allocation probe through PyTorch
+- Optional bounded allocation probe through the native CUDA runtime (`cudaMalloc`)
+- Optional native compute check (`--compute-check`): cuBLAS SGEMM, cuBLASLt FP32 and FP8 GEMM
 - Probe safety clamping through configurable limits
 - Basic OOM risk estimation through `--estimate-mb`
 - OOM risk availability source reporting
@@ -33,9 +36,10 @@ The current `.vramcard` includes:
 
 - OS and Python runtime information
 - WSL/container detection
-- PyTorch availability
-- CUDA availability through PyTorch, if installed
+- PyTorch version and its CUDA build, if installed
 - NVML availability
+- Device profile (`device`): NVML details, CUDA device attributes, derived
+  theoretical memory bandwidth and shared memory per block
 - NVIDIA GPU name
 - Total/free/used driver VRAM
 - Optional bounded probe result
@@ -144,7 +148,7 @@ The probe is designed to be conservative:
 
 - It does not run by default.
 - It requires explicit `--probe`.
-- It uses PyTorch CUDA only if available.
+- It allocates through the native CUDA runtime (`cudaMalloc`); PyTorch is not needed.
 - It allocates memory in configurable steps.
 - It never attempts more than `--probe-max-mb`.
 - It keeps a configurable free VRAM floor through `--probe-free-floor-mb`.
@@ -163,7 +167,7 @@ Example result:
 ```text
 Safe Probe
 Available             True
-Backend               torch-cuda
+Backend               cuda-runtime
 Attempted MB          8192
 Allocated MB          8192
 Safe Allocatable MB   6963
@@ -348,7 +352,7 @@ Source                   nvml
 
 Safe Probe
 Available             True
-Backend               torch-cuda
+Backend               cuda-runtime
 Attempted MB          12288
 Allocated MB          12288
 Safe Allocatable MB   10444
@@ -394,7 +398,7 @@ Example:
   },
   "probe": {
     "available": true,
-    "backend": "torch-cuda",
+    "backend": "cuda-runtime",
     "attempted_mb": 12288,
     "allocated_mb": 12288,
     "safe_allocatable_mb": 10444,
@@ -508,80 +512,67 @@ save_vramcard("system.vramcard.json", card=card)
 
 ## Architecture
 
-Current modules:
+VRAM Suite talks to NVIDIA libraries directly through `ctypes`. It does not
+import PyTorch or Triton: importing torch would load its own CUDA/cuBLAS DLLs
+into the process and mix library versions.
 
 ```text
 vramsuite/
-  __init__.py        Public Python API
-  cli/
-    main.py          CLI entrypoint
+  __init__.py          Public Python API
+  cli/main.py          CLI entrypoint
   core/
-    doctor.py        Structured diagnostics API
-    fingerprint.py   Runtime, PyTorch and NVML fingerprint collection
-    policies.py      Safety policy defaults
-    probe.py         Bounded CUDA allocation probe
-    reports.py       Rich terminal report rendering
-    risk.py          Basic OOM risk estimation
-    runtime.py       OS/Python/runtime detection
-    vramcard.py      .vramcard creation and loading/saving
+    doctor.py          Structured diagnostics API (+ native compute checks)
+    fingerprint.py     Runtime, NVML, CUDA runtime, cuBLAS, torch-metadata fingerprint
+    vramcard.py        .vramcard creation, GPU matching (NVML <-> CUDA by PCI)
+    probe.py           Bounded allocation probe (cudaMalloc)
+    risk.py            Basic OOM risk estimation
+    compare.py         .vramcard comparison
+    reports.py         Rich terminal report rendering
+    runtime.py         OS/Python/WSL/container detection
   backends/
-    nvml.py          NVIDIA NVML reader through ctypes
+    native_loader.py   DLL/.so discovery (CUDA Toolkit first, venv fallback)
+    nvml.py            NVML: memory, device details, PCIe, clocks, power
+    cuda.py            CUDA runtime: memory, device attributes, malloc/memcpy
+    cublas.py          cuBLAS handle and SGEMM
+    cublaslt/          cuBLASLt descriptors, heuristics, matmul
+  compute/
+    compute_math.py    cuBLAS SGEMM sanity check
+    cublaslt_math.py   cuBLASLt FP32 / FP8 GEMM checks
+    minifloat.py       Pure-Python FP8 / FP4 encode/decode
 ```
 
-Current data flow:
+Data flow:
 
 ```text
 CLI
   -> run_doctor()
-      -> collect_fingerprint()
-          -> runtime info
-          -> optional PyTorch info
-          -> NVML driver memory info
-      -> create_vramcard()
-      -> optional bounded CUDA allocation probe
+      -> collect_fingerprint()   runtime, NVML, CUDA runtime, cuBLAS, torch metadata
+      -> create_vramcard()       one GPU, matched across NVML and CUDA by PCI address
+      -> optional probe          cudaMalloc in bounded steps
+      -> optional compute check  cuBLAS / cuBLASLt correctness
       -> optional OOM risk estimate
-  -> render doctor report
-  -> optionally save .vramcard
-```
-
-## Planned compute backends
-
-VRAM Suite may later include optional compute-level backends.
-
-These are not required for basic diagnostics and should remain optional.
-
-Potential future backends:
-
-- `torch-matmul` — high-level PyTorch-backed compute probe
-- `triton` — optional custom kernel probe layer
-- `cuda-runtime` — raw CUDA memory allocation/synchronization layer
-- `cublas` — raw cuBLAS/cuBLASLt GEMM probe layer without depending on PyTorch
-
-The intended long-term goal is to compare memory behavior across layers:
-
-```text
-NVML driver memory
-  -> process allocation probe
-  -> compute workload probe
-  -> workflow-level memory profile
+  -> render report, optionally save .vramcard
 ```
 
 ## Roadmap
 
-Planned next steps:
+Done:
 
-- Improve probe reporting
-- Add optional memory-touch probe mode
-- Add probe hold/debug mode
-- Add process-level memory tracking
-- Add workflow profile format
-- Add ComfyUI workflow analysis
-- Add model file inspection
-- Add automatic workflow memory estimation
-- Add profile validation and schema checks
-- Add optional ComfyUI integration
-- Add optional compute backend capability detection
-- Add experimental compute probe layer
+- Native CUDA runtime, cuBLAS and cuBLASLt backends (no PyTorch)
+- Compute backend capability detection (device profile in `.vramcard`)
+- Experimental compute probe layer (cuBLAS / cuBLASLt FP32, FP8)
+
+Next, in order:
+
+1. Model file inspection: read `.safetensors` headers to get exact weight sizes per dtype
+2. Process-level memory tracking through NVML (observe ComfyUI or any process from outside)
+3. Host <-> device transfer benchmark (PCIe bandwidth, offloading cost)
+4. Workflow memory estimation: weights + KV cache + activations vs the device profile
+5. ComfyUI workflow analysis built on 1-4
+6. Profile validation and schema checks
+
+Out of scope for VRAM Suite (separate kernel project): custom attention kernels,
+FP4 block-scaled GEMM, kernel autotuning.
 
 ## Status
 

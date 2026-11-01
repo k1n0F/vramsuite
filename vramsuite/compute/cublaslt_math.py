@@ -11,7 +11,7 @@ from vramsuite.backends.cublaslt import (
     MatmulDesc,
     MatmulLayoutSpec,
     MatmulPreference,
-    run_cublaslt_matmul_fp32,
+    run_cublaslt_matmul,
     select_matmul_algorithm,
 )
 from vramsuite.backends.cublaslt.enums import (
@@ -142,7 +142,7 @@ def _run_lt_matmul(
                 )
 
                 with DeviceWorkspace(cuda, size_bytes=workspace_bytes) as workspace:
-                    run_cublaslt_matmul_fp32(
+                    run_cublaslt_matmul(
                         rt,
                         operation_desc=op,
                         a_ptr=a_ptr,
