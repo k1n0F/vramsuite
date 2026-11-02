@@ -41,6 +41,7 @@ uv run vramsuite doctor --compute-check
 | `vramsuite inspect <model>` | Exact weight sizes per dtype from `.safetensors` headers | [Model inspection](docs/model-inspection.md) |
 | `vramsuite processes [--watch S]` | VRAM per process, with peaks | [Process tracking](docs/process-tracking.md) |
 | `vramsuite transfer` | Real RAM <-> VRAM bandwidth over PCIe | [Transfer benchmark](docs/transfer.md) |
+| `vramsuite estimate <models>` | Will models fit in VRAM, and what offloading the rest costs per step | [Memory estimate](docs/estimate.md) |
 | `vramsuite compare a b` | Diff of two `.vramcard` profiles | [`.vramcard` format](docs/vramcard.md) |
 
 Every command supports `--json`. Full documentation: [docs/](docs/README.md).
@@ -99,6 +100,7 @@ flowchart LR
         inspect["model_inspect"]
         processes["processes"]
         transfer["transfer"]
+        estimate["estimate"]
         probe["probe / risk"]
     end
 
@@ -130,6 +132,7 @@ vramsuite/
     model_inspect.py   .safetensors header reader (exact weight sizes)
     processes.py       Per-process VRAM usage and peaks
     transfer.py        Host <-> device bandwidth benchmark
+    estimate.py        Workflow memory estimate and offloading cost
     compare.py         .vramcard comparison
     reports.py         Rich terminal report rendering
     runtime.py         OS/Python/WSL/container detection
@@ -177,7 +180,7 @@ print(run_transfer_benchmark()["results"])
 - [x] Model file inspection from `.safetensors` headers
 - [x] Per-process VRAM tracking (Windows PDH / Linux NVML)
 - [x] Host <-> device transfer benchmark
-- [ ] Workflow memory estimation: weights + activations + offloading cost vs the device profile
+- [x] Workflow memory estimation: weights + activations + offloading cost vs the device profile
 - [ ] ComfyUI workflow analysis
 - [ ] Profile validation and schema checks
 

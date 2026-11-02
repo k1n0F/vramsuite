@@ -306,6 +306,64 @@ def print_transfer_table(console: Console, info: dict[str, Any]) -> None:
     console.print("[dim]device_to_device counts read + write, i.e. VRAM bandwidth.[/dim]")
 
 
+ESTIMATE_STATUS = {
+    "fits": "[green]fits[/green]",
+    "offload": "[yellow]fits with offloading[/yellow]",
+    "does_not_fit": "[red]does not fit[/red]",
+}
+
+
+def print_estimate_table(console: Console, info: dict[str, Any]) -> None:
+    """Print the VRAM plan for a set of models and its offloading cost."""
+    table = Table(title=f"GPU {info['device_index']}: memory estimate")
+    table.add_column("Field", style="bold")
+    table.add_column("MB", justify="right")
+    table.add_column("Note")
+
+    for model in info["models"]:
+        table.add_row(model["name"], str(model["weights_mb"]), ", ".join(model["dtypes"]))
+    table.add_row("Activations", str(info["activations_mb"]), info["activations_source"])
+    table.add_row("Required", str(info["required_mb"]), "weights + activations")
+    table.add_row("Available", str(info["available_mb"]), info["available_source"])
+    table.add_row("Reserve", str(info["reserve_mb"]), "CUDA context, workspaces, fragmentation")
+    table.add_row("Budget", str(info["budget_mb"]), "available - reserve")
+    if info["status"] == "fits":
+        table.add_row("Headroom", str(info["headroom_mb"]), "")
+    else:
+        table.add_row("Overflow", str(info["overflow_mb"]), "required - budget")
+    table.add_row("Status", "", ESTIMATE_STATUS[info["status"]])
+    table.add_row("Risk level", "", f"{info['risk']['risk_level']} ({info['risk']['usage_ratio']:.0%} of budget if fully resident)")
+    console.print(table)
+
+    if info["activations_source"] == "not_set":
+        console.print(
+            "[yellow]Activations not set:[/yellow] only weights are counted. Pass --activations-mb, "
+            "or --observed-peak-mb with the peak from `vramsuite processes --watch`."
+        )
+
+    offload = info["offload"]
+    if offload is None:
+        return
+
+    if offload["error"]:
+        console.print(f"[red]Transfer measurement failed:[/red] {offload['error']}")
+        return
+
+    cost = Table(title=f"Offloading {offload['offload_mb']} MB of weights per step ({offload['source']} PCIe)")
+    cost.add_column("Host memory", style="bold")
+    cost.add_column("GB/s", justify="right")
+    cost.add_column("Extra seconds per step", justify="right")
+    for memory in ("pinned", "pageable"):
+        gb_s = offload[f"{memory}_gb_s"]
+        if gb_s is not None:
+            cost.add_row(memory, str(gb_s), str(offload[f"seconds_per_step_{memory}"]))
+    console.print(cost)
+    console.print(
+        "[dim]Lower bound: assumes each offloaded weight crosses PCIe once per step. "
+        "Multiply by the number of steps for the whole run.[/dim]"
+    )
+
+
 def print_risk_table(console: Console, risk_info: dict[str, Any] | None) -> None:
     """Print OOM risk estimate results."""
     if risk_info is None:

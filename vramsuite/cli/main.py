@@ -19,6 +19,7 @@ from vramsuite.core.compare import compare_vramcards
 from vramsuite.core.model_inspect import ModelInspectError, inspect_model
 from vramsuite.core.processes import snapshot_gpu_processes, watch_gpu_processes
 from vramsuite.core.transfer import run_transfer_benchmark
+from vramsuite.core.estimate import DEFAULT_RESERVE_MB, estimate_workflow
 
 
 
@@ -36,6 +37,7 @@ from vramsuite.core.reports import (
     print_model_table,
     print_processes_table,
     print_transfer_table,
+    print_estimate_table,
     print_vramcard_compare_table,
 )
 
@@ -299,6 +301,70 @@ def transfer(
         return
 
     print_transfer_table(console, info)
+
+
+@app.command()
+def estimate(
+    models: list[Path] = typer.Argument(
+        ...,
+        help="Models resident in VRAM at the same time (.safetensors files or shard directories).",
+    ),
+    activations_mb: float = typer.Option(
+        0,
+        "--activations-mb",
+        help="VRAM for activations / latents on top of the weights.",
+    ),
+    observed_peak_mb: float | None = typer.Option(
+        None,
+        "--observed-peak-mb",
+        help="Peak VRAM of a real run (from `processes --watch`); activations = peak - weights.",
+    ),
+    available_mb: float | None = typer.Option(
+        None,
+        "--available-mb",
+        help="VRAM available to the workflow. Default: free VRAM right now (NVML).",
+    ),
+    reserve_mb: float = typer.Option(
+        DEFAULT_RESERVE_MB,
+        "--reserve-mb",
+        help="Kept free for CUDA context, workspaces and fragmentation.",
+    ),
+    transfer_gb_s: float | None = typer.Option(
+        None,
+        "--transfer-gb-s",
+        help="Host -> device bandwidth for offloading. Default: measured when offloading is needed.",
+    ),
+    gpu: int = typer.Option(
+        0,
+        "--gpu",
+        help="GPU index.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the result as JSON.",
+    ),
+) -> None:
+    """Estimate whether models fit in VRAM and what offloading the rest costs."""
+    try:
+        info = estimate_workflow(
+            models,
+            activations_mb=activations_mb,
+            observed_peak_mb=observed_peak_mb,
+            available_mb=available_mb,
+            reserve_mb=reserve_mb,
+            transfer_gb_s=transfer_gb_s,
+            device_index=gpu,
+        )
+    except (ModelInspectError, OSError, RuntimeError) as exc:
+        console.print(f"[red]Cannot estimate:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    if json_output:
+        console.print_json(json.dumps(info, indent=2, ensure_ascii=False))
+        return
+
+    print_estimate_table(console, info)
 
 
 if __name__ == "__main__":
