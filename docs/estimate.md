@@ -36,6 +36,37 @@ uv run vramsuite estimate model.safetensors --activations-mb 3000 --json
 
 Only list models that are in VRAM **at the same time**. For example, WAN 2.2 runs its high-noise and low-noise models one after another, so estimate them separately, not together.
 
+`.safetensors` sizes are exact. `.gguf`, `.pth` and `.ckpt` are not parsed (pickles can run code when loaded); their file size is used instead.
+
+## ComfyUI workflows
+
+Pass a workflow file instead of a list of models:
+
+```bash
+uv run vramsuite estimate --workflow "ComfyUI\user\default\workflows\my workflow.json" --observed-peak-mb 14745
+```
+
+- Both formats are read: the UI format from the workflows folder and the API format from "Export (API)".
+- Models are found by file extension in node values (`.safetensors`, `.gguf`, `.pth`, ...), so custom loader nodes work too. Muted and bypassed nodes are skipped.
+- Files are looked up in `ComfyUI/models`, found automatically above the workflow file. Pass `--models-dir` otherwise. Models that are not found are listed as warnings; some custom nodes keep weights in their own folder under `custom_nodes`.
+
+ComfyUI loads models stage by stage (text encoder, diffusion model, VAE) and unloads what does not fit, so the plan is made for the **largest model** plus activations. It is conservative when the largest model is the text encoder, whose activations are small. The sum of all models is shown below the table: if it exceeds the budget, ComfyUI reloads models between stages on every run.
+
+```text
+                wan22_i2v_nvfp4.json on GPU 0: memory estimate
+│ wan2.2_i2v_high_noise_14B_nvfp4_mixed.safetensors  │ 10047.7 │ UNETLoader: F8_E4M3, U8, F16, F32 │
+│ wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise...   │  1170.0 │ LoraLoaderModelOnly: F32, I64     │
+│ wan2.2_i2v_low_noise_14B_nvfp4_mixed.safetensors   │ 10047.7 │ UNETLoader: F8_E4M3, U8, F16, F32 │
+│ wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise...    │  1170.0 │ LoraLoaderModelOnly: F32, I64     │
+│ umt5_xxl_fp8_e4m3fn_scaled.safetensors             │  6423.8 │ CLIPLoader: F8_E4M3, F16, U8, F32 │
+│ Wan2.1_VAE.pth                                     │   484.1 │ VAELoader: file size              │
+│ Weights                                            │ 10047.7 │ largest model, loaded stage by stage │
+│ Activations                                        │  4697.3 │ observed_peak                     │
+│ Status                                             │         │ fits                              │
+Not found in ...\ComfyUI\models: rife49.pth
+All models together: 34040.6 MB, more than the budget: ComfyUI unloads and reloads models between stages on every run.
+```
+
 ## Activations
 
 Weights are exact. Activations (latents, attention buffers, intermediate tensors) depend on resolution, frame count, batch and the attention implementation, so VRAM Suite does not guess them from formulas.
@@ -150,8 +181,10 @@ It fits, but with only about 0.5 GB of headroom: a browser or an overlay that ta
 
 ```text
 device_index
-models               list: name, path, weights_mb, dtypes
-weights_mb
+models               list: name, path, weights_mb, dtypes (+ node_type for workflows)
+weights_mb           weights the plan is made for
+weights_basis        all (sum of models) | largest (workflows)
+all_weights_mb       sum of all models
 activations_mb
 activations_source   given | observed_peak | not_set
 available_mb
@@ -167,6 +200,7 @@ risk                 OOM risk object, same as doctor --estimate-mb
 offload              null unless status is offload:
   pinned_gb_s, pageable_gb_s, source (measured | given), error,
   offload_mb, seconds_per_step_pinned, seconds_per_step_pageable
+workflow             only with --workflow: name, models_dir, missing (file names)
 ```
 
 ## Python API
@@ -181,4 +215,9 @@ info = estimate_workflow(
 )
 
 print(info["status"], info["headroom_mb"])
+
+from vramsuite.core.workflow import estimate_comfy_workflow
+
+info = estimate_comfy_workflow("workflow.json", observed_peak_mb=14745, available_mb=16303)
+print(info["status"], info["workflow"]["missing"])
 ```

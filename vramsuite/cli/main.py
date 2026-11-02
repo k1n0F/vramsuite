@@ -20,6 +20,7 @@ from vramsuite.core.model_inspect import ModelInspectError, inspect_model
 from vramsuite.core.processes import snapshot_gpu_processes, watch_gpu_processes
 from vramsuite.core.transfer import run_transfer_benchmark
 from vramsuite.core.estimate import DEFAULT_RESERVE_MB, estimate_workflow
+from vramsuite.core.workflow import estimate_comfy_workflow
 
 
 
@@ -305,9 +306,19 @@ def transfer(
 
 @app.command()
 def estimate(
-    models: list[Path] = typer.Argument(
-        ...,
-        help="Models resident in VRAM at the same time (.safetensors files or shard directories).",
+    models: list[Path] | None = typer.Argument(
+        None,
+        help="Models resident in VRAM at the same time (.safetensors, .gguf, .pth or shard directories).",
+    ),
+    workflow: Path | None = typer.Option(
+        None,
+        "--workflow",
+        help="ComfyUI workflow JSON (UI or API format) instead of a list of models.",
+    ),
+    models_dir: Path | None = typer.Option(
+        None,
+        "--models-dir",
+        help="ComfyUI models folder. Default: found above the workflow file.",
     ),
     activations_mb: float = typer.Option(
         0,
@@ -346,17 +357,24 @@ def estimate(
     ),
 ) -> None:
     """Estimate whether models fit in VRAM and what offloading the rest costs."""
+    if not models and workflow is None:
+        console.print("[red]Cannot estimate:[/red] pass model files or --workflow")
+        raise typer.Exit(code=1)
+
+    options = dict(
+        activations_mb=activations_mb,
+        observed_peak_mb=observed_peak_mb,
+        available_mb=available_mb,
+        reserve_mb=reserve_mb,
+        transfer_gb_s=transfer_gb_s,
+        device_index=gpu,
+    )
     try:
-        info = estimate_workflow(
-            models,
-            activations_mb=activations_mb,
-            observed_peak_mb=observed_peak_mb,
-            available_mb=available_mb,
-            reserve_mb=reserve_mb,
-            transfer_gb_s=transfer_gb_s,
-            device_index=gpu,
-        )
-    except (ModelInspectError, OSError, RuntimeError) as exc:
+        if workflow is not None:
+            info = estimate_comfy_workflow(workflow, models_dir=models_dir, **options)
+        else:
+            info = estimate_workflow(models, **options)
+    except (ModelInspectError, OSError, ValueError, RuntimeError) as exc:
         console.print(f"[red]Cannot estimate:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 

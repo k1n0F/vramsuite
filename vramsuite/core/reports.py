@@ -315,13 +315,20 @@ ESTIMATE_STATUS = {
 
 def print_estimate_table(console: Console, info: dict[str, Any]) -> None:
     """Print the VRAM plan for a set of models and its offloading cost."""
-    table = Table(title=f"GPU {info['device_index']}: memory estimate")
+    workflow = info.get("workflow")
+    title = f"GPU {info['device_index']}: memory estimate"
+    table = Table(title=f"{workflow['name']} on {title}" if workflow else title)
     table.add_column("Field", style="bold")
     table.add_column("MB", justify="right")
     table.add_column("Note")
 
     for model in info["models"]:
-        table.add_row(model["name"], str(model["weights_mb"]), ", ".join(model["dtypes"]))
+        note = ", ".join(model["dtypes"])
+        if "node_type" in model:
+            note = f"{model['node_type']}: {note}"
+        table.add_row(model["name"], str(model["weights_mb"]), note)
+    if info["weights_basis"] == "largest":
+        table.add_row("Weights", str(info["weights_mb"]), "largest model, loaded stage by stage")
     table.add_row("Activations", str(info["activations_mb"]), info["activations_source"])
     table.add_row("Required", str(info["required_mb"]), "weights + activations")
     table.add_row("Available", str(info["available_mb"]), info["available_source"])
@@ -340,6 +347,18 @@ def print_estimate_table(console: Console, info: dict[str, Any]) -> None:
             "[yellow]Activations not set:[/yellow] only weights are counted. Pass --activations-mb, "
             "or --observed-peak-mb with the peak from `vramsuite processes --watch`."
         )
+
+    if workflow:
+        for name in workflow["missing"]:
+            console.print(f"[yellow]Not found in {workflow['models_dir']}:[/yellow] {name}")
+        together = info["all_weights_mb"] + info["activations_mb"]
+        if together <= info["budget_mb"]:
+            console.print(f"[dim]All models together: {together:.1f} MB, they stay loaded between runs.[/dim]")
+        else:
+            console.print(
+                f"[dim]All models together: {together:.1f} MB, more than the budget: "
+                "ComfyUI unloads and reloads models between stages on every run.[/dim]"
+            )
 
     offload = info["offload"]
     if offload is None:

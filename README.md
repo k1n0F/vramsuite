@@ -42,6 +42,7 @@ uv run vramsuite doctor --compute-check
 | `vramsuite processes [--watch S]` | VRAM per process, with peaks | [Process tracking](docs/process-tracking.md) |
 | `vramsuite transfer` | Real RAM <-> VRAM bandwidth over PCIe | [Transfer benchmark](docs/transfer.md) |
 | `vramsuite estimate <models>` | Will models fit in VRAM, and what offloading the rest costs per step | [Memory estimate](docs/estimate.md) |
+| `vramsuite estimate --workflow <file.json>` | The same for a ComfyUI workflow: finds the models it loads | [Memory estimate](docs/estimate.md#comfyui-workflows) |
 | `vramsuite compare a b` | Diff of two `.vramcard` profiles | [`.vramcard` format](docs/vramcard.md) |
 
 Every command supports `--json`. Full documentation: [docs/](docs/README.md).
@@ -101,6 +102,7 @@ flowchart LR
         processes["processes"]
         transfer["transfer"]
         estimate["estimate"]
+        workflow["workflow (ComfyUI)"]
         probe["probe / risk"]
     end
 
@@ -133,6 +135,7 @@ vramsuite/
     processes.py       Per-process VRAM usage and peaks
     transfer.py        Host <-> device bandwidth benchmark
     estimate.py        Workflow memory estimate and offloading cost
+    workflow.py        ComfyUI workflow JSON -> model files -> estimate
     compare.py         .vramcard comparison
     reports.py         Rich terminal report rendering
     runtime.py         OS/Python/WSL/container detection
@@ -181,7 +184,7 @@ print(run_transfer_benchmark()["results"])
 - [x] Per-process VRAM tracking (Windows PDH / Linux NVML)
 - [x] Host <-> device transfer benchmark
 - [x] Workflow memory estimation: weights + activations + offloading cost vs the device profile
-- [ ] ComfyUI workflow analysis
+- [x] ComfyUI workflow analysis
 - [ ] Profile validation and schema checks
 
 Out of scope (separate kernel project): custom attention kernels, FP4 block-scaled GEMM, kernel autotuning.

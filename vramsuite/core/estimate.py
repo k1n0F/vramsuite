@@ -90,6 +90,15 @@ def _measure_transfer(device_index: int) -> dict[str, Any]:
     }
 
 
+def _model_weights(path: Path) -> dict[str, Any]:
+    if path.is_dir() or path.suffix.lower() == ".safetensors":
+        model = inspect_model(path)
+        return {"name": path.name, "path": str(path), "weights_mb": model["total_mb"], "dtypes": list(model["by_dtype"])}
+    # GGUF and pickles (.pth/.ckpt) are not parsed; pickles can run code. Their
+    # file size is the weights plus a small header.
+    return {"name": path.name, "path": str(path), "weights_mb": round(path.stat().st_size / BYTES_PER_MB, 1), "dtypes": ["file size"]}
+
+
 def estimate_workflow(
         model_paths: list[str | Path],
         activations_mb: float = 0.0,
@@ -98,15 +107,20 @@ def estimate_workflow(
         reserve_mb: float = DEFAULT_RESERVE_MB,
         transfer_gb_s: float | None = None,
         device_index: int = 0,
+        largest_only: bool = False,
 ) -> dict[str, Any]:
     """
     Estimate VRAM for models that are resident at the same time.
 
     observed_peak_mb (peak of the process during a real run) overrides
     activations_mb: activations = peak - weights.
+
+    largest_only plans for the largest model alone, for runtimes that load
+    models one stage at a time (ComfyUI).
     """
-    models = [inspect_model(path) for path in model_paths]
-    weights_mb = sum(model["total_mb"] for model in models)
+    models = [_model_weights(Path(path)) for path in model_paths]
+    all_weights_mb = sum(model["weights_mb"] for model in models)
+    weights_mb = max(model["weights_mb"] for model in models) if largest_only else all_weights_mb
 
     if observed_peak_mb is not None:
         activations_mb = max(observed_peak_mb - weights_mb, 0.0)
@@ -146,16 +160,10 @@ def estimate_workflow(
 
     return {
         "device_index": device_index,
-        "models": [
-            {
-                "name": Path(model["path"]).name,
-                "path": model["path"],
-                "weights_mb": model["total_mb"],
-                "dtypes": list(model["by_dtype"]),
-            }
-            for model in models
-        ],
+        "models": models,
         "weights_mb": round(weights_mb, 1),
+        "weights_basis": "largest" if largest_only else "all",
+        "all_weights_mb": round(all_weights_mb, 1),
         "activations_mb": round(activations_mb, 1),
         "activations_source": activations_source,
         "available_mb": round(float(available_mb), 1),
