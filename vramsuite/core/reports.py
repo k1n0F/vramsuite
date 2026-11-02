@@ -383,6 +383,23 @@ def print_estimate_table(console: Console, info: dict[str, Any]) -> None:
     )
 
 
+def print_validation(console: Console, path: str, info: dict[str, Any]) -> None:
+    """Print .vramcard validation issues."""
+    if not info["issues"]:
+        console.print(f"[green]Valid:[/green] {path} ({info['schema']})")
+        return
+
+    table = Table(title=f"{path} ({info['schema']})")
+    table.add_column("Level", style="bold")
+    table.add_column("Field")
+    table.add_column("Problem")
+    for issue in info["issues"]:
+        color = "red" if issue["level"] == "error" else "yellow"
+        table.add_row(f"[{color}]{issue['level']}[/{color}]", issue["field"], issue["message"])
+    console.print(table)
+    console.print("[green]Valid[/green] (warnings only)" if info["valid"] else "[red]Invalid[/red]")
+
+
 def print_risk_table(console: Console, risk_info: dict[str, Any] | None) -> None:
     """Print OOM risk estimate results."""
     if risk_info is None:

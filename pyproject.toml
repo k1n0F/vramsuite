@@ -1,6 +1,6 @@
 [project]
 name = "vramsuite"
-version = "0.1.0a0"
+version = "0.1.0"
 description = "Predictive GPU memory framework for AI inference workflows"
 readme = "README.md"
 requires-python = ">=3.10"

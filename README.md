@@ -10,7 +10,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
-  <img src="https://img.shields.io/badge/status-pre--alpha-orange" alt="pre-alpha">
+  <img src="https://img.shields.io/badge/status-alpha-orange" alt="alpha">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20WSL2-lightgrey" alt="Windows, Linux, WSL2">
   <img src="https://img.shields.io/badge/CUDA-native%20ctypes-76B900?logo=nvidia&logoColor=white" alt="Native CUDA">
   <img src="https://img.shields.io/badge/PyTorch-not%20required-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch not required">
@@ -44,6 +44,7 @@ uv run vramsuite doctor --compute-check
 | `vramsuite estimate <models>` | Will models fit in VRAM, and what offloading the rest costs per step | [Memory estimate](docs/estimate.md) |
 | `vramsuite estimate --workflow <file.json>` | The same for a ComfyUI workflow: finds the models it loads | [Memory estimate](docs/estimate.md#comfyui-workflows) |
 | `vramsuite compare a b` | Diff of two `.vramcard` profiles | [`.vramcard` format](docs/vramcard.md) |
+| `vramsuite validate card.json` | Structure and sanity check of a `.vramcard` (exit code 1 if invalid) | [`.vramcard` format](docs/vramcard.md#validating-a-card) |
 
 Every command supports `--json`. Full documentation: [docs/](docs/README.md).
 
@@ -185,7 +186,7 @@ print(run_transfer_benchmark()["results"])
 - [x] Host <-> device transfer benchmark
 - [x] Workflow memory estimation: weights + activations + offloading cost vs the device profile
 - [x] ComfyUI workflow analysis
-- [ ] Profile validation and schema checks
+- [x] Profile validation and schema checks
 
 Out of scope (separate kernel project): custom attention kernels, FP4 block-scaled GEMM, kernel autotuning.
 
@@ -203,7 +204,7 @@ Other NVIDIA GPUs should work; FP8 compute checks need Ada (sm_89) or newer.
 
 ## Status
 
-Pre-alpha. The CLI, `.vramcard` format and Python API can still change between versions.
+Alpha (v0.1). The CLI, `.vramcard` format and Python API can still change between versions.
 
 ## License
 

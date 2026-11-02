@@ -2,7 +2,7 @@
 VRAM Suite CLI entrypoint.
 
 Status:
-    pre-alpha / project skeleton
+    alpha
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from vramsuite.core.processes import snapshot_gpu_processes, watch_gpu_processes
 from vramsuite.core.transfer import run_transfer_benchmark
 from vramsuite.core.estimate import DEFAULT_RESERVE_MB, estimate_workflow
 from vramsuite.core.workflow import estimate_comfy_workflow
+from vramsuite.core.validate import validate_vramcard
 
 
 
@@ -39,6 +40,7 @@ from vramsuite.core.reports import (
     print_processes_table,
     print_transfer_table,
     print_estimate_table,
+    print_validation,
     print_vramcard_compare_table,
 )
 
@@ -177,10 +179,10 @@ def compare(
     json_output: bool = typer.Option(
         False,
         "--json",
-        help="Print comparision result as JSON.",
+        help="Print comparison result as JSON.",
     ),
 ) -> None:
-    """Compare two .vramcrad JSON files."""
+    """Compare two .vramcard JSON files."""
 
     left_card = load_vramcard(left)
     right_card = load_vramcard(right)
@@ -198,6 +200,35 @@ def compare(
         return
     
     print_vramcard_compare_table(console, comparison)
+
+@app.command()
+def validate(
+    path: Path = typer.Argument(
+        ...,
+        help="Path to a .vramcard JSON file.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the validation result as JSON.",
+    ),
+) -> None:
+    """Check a .vramcard for structure errors and numbers that contradict each other."""
+    try:
+        card = load_vramcard(path)
+    except (OSError, ValueError) as exc:
+        console.print(f"[red]Cannot read card:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    info = validate_vramcard(card)
+    if json_output:
+        console.print_json(json.dumps(info, indent=2, ensure_ascii=False))
+    else:
+        print_validation(console, str(path), info)
+
+    if not info["valid"]:
+        raise typer.Exit(code=1)
+
 
 @app.command()
 def inspect(

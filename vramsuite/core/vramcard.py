@@ -1,9 +1,5 @@
 """
-VRAM Suite .vramcard module.
-
-Planned for v0.1-alpha:
-- create initial system.vramcard structure
-- save/load .vramcard JSON
+VRAM Suite .vramcard module: create, save and load system.vramcard JSON.
 """
 
 from __future__ import annotations
@@ -243,8 +239,8 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
         "known_issues": [],
         "meta": {
             "created_by": "VRAM Suite",
-            "status": "pre-alpha",
-            "notes":"initial v0.1-alpha vramcard. Safe allocation probe is not implemented yet.",
+            "status": "alpha",
+            "notes": "Memory values are a snapshot at generated_at. Run `vramsuite doctor --probe` for allocatable budgets.",
          }
 
     }

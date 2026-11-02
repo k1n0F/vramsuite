@@ -196,6 +196,30 @@ uv run vramsuite compare a.vramcard.json b.vramcard.json --json
 }
 ```
 
+## Validating a card
+
+`validate` checks that a card is intact and that its numbers agree with each other:
+
+```bash
+uv run vramsuite validate system.vramcard.json
+```
+
+- **Structure:** `schema` is a `.vramcard` schema, `generated_at` is an ISO timestamp, the `gpu` / `environment` / `stack` / `memory` sections exist, and known fields have the right types.
+- **Sanity:** compute capability matches `major.minor`; no negative MB; free / used do not exceed total; `free + used` is close to total; `safe_allocatable <= process_allocatable`; the memory budgets match the `probe` section; `risk_level` is a known level.
+
+Errors mean the card is broken or was edited by hand, and it should not be used for `compare` or `estimate`. Warnings are possible but suspicious values, for example a schema from a newer VRAM Suite or no GPU detected.
+
+```text
+| Level   | Field                      | Problem                                             |
+|---------+----------------------------+-----------------------------------------------------|
+| error   | gpu.compute_capability     | 8.9 disagrees with major/minor                      |
+| error   | memory.safe_allocatable_mb | 9000 MB is more than process_allocatable_mb 6144 MB |
+| error   | memory.safe_allocatable_mb | disagrees with probe.safe_allocatable_mb            |
+Invalid
+```
+
+The exit code is `1` when the card is invalid, so it can be used in scripts and CI. `--json` prints `schema`, `valid` and the list of `issues` (`level`, `field`, `message`).
+
 ## Python API
 
 ```python
