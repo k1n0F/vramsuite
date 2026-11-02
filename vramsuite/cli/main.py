@@ -18,6 +18,7 @@ from vramsuite.core.vramcard import load_vramcard, save_vramcard
 from vramsuite.core.compare import compare_vramcards
 from vramsuite.core.model_inspect import ModelInspectError, inspect_model
 from vramsuite.core.processes import snapshot_gpu_processes, watch_gpu_processes
+from vramsuite.core.transfer import run_transfer_benchmark
 
 
 
@@ -34,6 +35,7 @@ from vramsuite.core.reports import (
     print_compute_check_table,
     print_model_table,
     print_processes_table,
+    print_transfer_table,
     print_vramcard_compare_table,
 )
 
@@ -263,6 +265,40 @@ def processes(
         return
 
     print_processes_table(console, info, watched=watch > 0)
+
+
+@app.command()
+def transfer(
+    size_mb: int = typer.Option(
+        256,
+        "--size-mb",
+        help="Bytes per copy. Needs this much free VRAM (x2) and pinned RAM.",
+    ),
+    repeats: int = typer.Option(
+        5,
+        "--repeats",
+        help="Timed copies per direction (after one warm-up copy).",
+    ),
+    gpu: int = typer.Option(
+        0,
+        "--gpu",
+        help="CUDA device index.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the result as JSON.",
+    ),
+) -> None:
+    """Measure host <-> device copy bandwidth over the real PCIe link."""
+    with console.status(f"Copying {size_mb} MB blocks..."):
+        info = run_transfer_benchmark(device_index=gpu, size_mb=size_mb, repeats=repeats)
+
+    if json_output:
+        console.print_json(json.dumps(info, indent=2, ensure_ascii=False))
+        return
+
+    print_transfer_table(console, info)
 
 
 if __name__ == "__main__":

@@ -156,6 +156,15 @@ def _configure_signatures(cudart: ctypes.CDLL) -> None:
     cudart.cudaFree.argtypes = [ctypes.c_void_p]
     cudart.cudaFree.restype = ctypes.c_int
 
+    cudart.cudaMallocHost.argtypes = [
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_size_t,
+    ]
+    cudart.cudaMallocHost.restype = ctypes.c_int
+
+    cudart.cudaFreeHost.argtypes = [ctypes.c_void_p]
+    cudart.cudaFreeHost.restype = ctypes.c_int
+
     cudart.cudaMemcpy.argtypes = [
         ctypes.c_void_p,
         ctypes.c_void_p,
@@ -333,6 +342,31 @@ class CudaRuntime:
 
         status = cudart.cudaFree(ptr)
         self._check_status(status, "cudaFree")
+
+    def host_malloc(self, size_bytes: int) -> ctypes.c_void_p:
+        """Page-locked (pinned) host memory: the GPU can DMA it directly."""
+        if size_bytes <= 0:
+            raise ValueError(f"size_bytes must be > 0, got {size_bytes}")
+
+        cudart = self._require_cudart()
+
+        ptr = ctypes.c_void_p()
+        status = cudart.cudaMallocHost(ctypes.byref(ptr), ctypes.c_size_t(size_bytes))
+        self._check_status(status, "cudaMallocHost")
+
+        if ptr.value is None:
+            raise RuntimeError("cudaMallocHost returned NULL pointer")
+
+        return ptr
+
+    def host_free(self, ptr: ctypes.c_void_p | None) -> None:
+        if ptr is None or ptr.value is None:
+            return
+
+        cudart = self._require_cudart()
+
+        status = cudart.cudaFreeHost(ptr)
+        self._check_status(status, "cudaFreeHost")
 
     def free_all(self, *ptrs: ctypes.c_void_p | None) -> None:
         """Free every pointer even if some frees fail; raise the first error afterwards."""

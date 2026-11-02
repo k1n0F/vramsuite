@@ -266,6 +266,46 @@ def print_processes_table(console: Console, info: dict[str, Any], watched: bool)
     )
 
 
+def print_transfer_table(console: Console, info: dict[str, Any]) -> None:
+    """Print host <-> device bandwidth with the PCIe link it ran on."""
+    pcie = info["pcie"]
+    link = pcie["theoretical_gb_s"]
+
+    table = Table(title=f"GPU {info['device_index']} {info['name']}: transfers ({info['size_mb']} MB x {info['repeats']})")
+    table.add_column("Direction", style="bold")
+    table.add_column("Host memory")
+    table.add_column("Best GB/s", justify="right")
+    table.add_column("Median GB/s", justify="right")
+    table.add_column("% of link", justify="right")
+    table.add_column("ms per GB", justify="right")
+    table.add_column("Error")
+
+    for row in info["results"]:
+        best = row["best_gb_s"]
+        over_pcie = row["direction"] != "device_to_device"
+        table.add_row(
+            row["direction"],
+            row["host_memory"],
+            "" if best is None else str(best),
+            "" if row["median_gb_s"] is None else str(row["median_gb_s"]),
+            f"{100 * best / link:.0f}%" if best and link and over_pcie else "",
+            f"{1000 / best:.1f}" if best else "",
+            row["error"] or "",
+        )
+
+    console.print(table)
+    console.print(
+        f"PCIe Gen{pcie['link_gen_max']} x{pcie['link_width_current']} "
+        f"(card supports x{pcie['link_width_max']}): theoretical {link} GB/s per direction"
+        + (
+            f", {pcie['theoretical_full_width_gb_s']} GB/s at full width"
+            if pcie["link_width_current"] != pcie["link_width_max"]
+            else ""
+        )
+    )
+    console.print("[dim]device_to_device counts read + write, i.e. VRAM bandwidth.[/dim]")
+
+
 def print_risk_table(console: Console, risk_info: dict[str, Any] | None) -> None:
     """Print OOM risk estimate results."""
     if risk_info is None:

@@ -29,6 +29,7 @@ VRAM Suite currently provides:
 - Windows and WSL-friendly runtime detection
 - Model file inspection (`vramsuite inspect`): exact weight sizes from `.safetensors` headers
 - Per-process VRAM tracking (`vramsuite processes`), with peak tracking in `--watch` mode
+- Host <-> device transfer benchmark (`vramsuite transfer`): pinned / pageable bandwidth vs the PCIe link
 
 Detailed documentation for every feature is in [docs/](docs/README.md).
 
@@ -532,6 +533,7 @@ vramsuite/
     risk.py            Basic OOM risk estimation
     model_inspect.py   .safetensors header reader (exact weight sizes)
     processes.py       Per-process VRAM usage and peaks
+    transfer.py        Host <-> device bandwidth benchmark
     compare.py         .vramcard comparison
     reports.py         Rich terminal report rendering
     runtime.py         OS/Python/WSL/container detection
@@ -570,13 +572,13 @@ Done:
 - Experimental compute probe layer (cuBLAS / cuBLASLt FP32, FP8)
 - Model file inspection: `.safetensors` headers give exact weight sizes per dtype
 - Process-level memory tracking (Windows PDH / Linux NVML), observed from outside
+- Host <-> device transfer benchmark (PCIe bandwidth, offloading cost)
 
 Next, in order:
 
-1. Host <-> device transfer benchmark (PCIe bandwidth, offloading cost)
-2. Workflow memory estimation: weights + KV cache + activations vs the device profile
-3. ComfyUI workflow analysis built on 1-2
-4. Profile validation and schema checks
+1. Workflow memory estimation: weights + KV cache + activations vs the device profile
+2. ComfyUI workflow analysis built on 1
+3. Profile validation and schema checks
 
 Out of scope for VRAM Suite (separate kernel project): custom attention kernels,
 FP4 block-scaled GEMM, kernel autotuning.

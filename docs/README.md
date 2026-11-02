@@ -9,6 +9,7 @@ The main [README](../README.md) is the overview. These pages go deeper: what eve
 - [Device profile](device-profile.md) — `doctor`, the `device` section of `.vramcard`, native compute check
 - [Model inspection](model-inspection.md) — `inspect`, exact weight sizes from `.safetensors` headers
 - [Process tracking](process-tracking.md) — `processes`, per-process VRAM observed from outside
+- [Transfer benchmark](transfer.md) — `transfer`, real RAM <-> VRAM bandwidth over PCIe
 - [`.vramcard` format](vramcard.md) — every section of the profile, and `compare`
 - [Native backends](native-backends.md) — how VRAM Suite talks to NVIDIA libraries without PyTorch
 
@@ -20,6 +21,7 @@ uv run vramsuite doctor --compute-check  # + cuBLAS / cuBLASLt FP32, FP8 GEMM ch
 uv run vramsuite inspect model.safetensors
 uv run vramsuite processes               # VRAM per process, right now
 uv run vramsuite processes --watch 60    # peak VRAM per process over 60 seconds
+uv run vramsuite transfer                # RAM <-> VRAM bandwidth, pinned and pageable
 uv run vramsuite compare a.vramcard.json b.vramcard.json
 ```
 
