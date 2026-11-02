@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner-wide.png" alt="VRAM Suite" width="720">
+  <img src="https://raw.githubusercontent.com/k1n0F/vramsuite/main/assets/banner-wide.png" alt="VRAM Suite" width="720">
 </p>
 
 <p align="center">
@@ -20,35 +20,53 @@
 
 VRAM Suite talks to NVIDIA libraries directly (NVML, CUDA driver and runtime, cuBLAS, cuBLASLt) and shows what is really happening with GPU memory: what the card is, who holds VRAM, how big a model is, and how fast weights move over PCIe.
 
-## Quick start
+## Install
 
 ```bash
+pip install vramsuite
+vramsuite doctor
+```
+
+Only the NVIDIA driver is needed: no PyTorch, no CUDA Toolkit. The cuBLAS / cuBLASLt compute checks (`doctor --compute-check`) need cuBLAS, from the CUDA Toolkit or from NVIDIA's wheels:
+
+```bash
+pip install "vramsuite[compute]"
+```
+
+**No Python?** Download `vramsuite.exe` (Windows) from [Releases](https://github.com/k1n0F/vramsuite/releases) and run `vramsuite.exe doctor` in a terminal, or double-click it.
+
+**From source:**
+
+```bash
+git clone https://github.com/k1n0F/vramsuite
+cd vramsuite
 uv sync
-uv run vramsuite doctor --compute-check
+uv run vramsuite doctor
 ```
 
 <p align="center">
-  <img src="assets/doctor.svg" alt="vramsuite doctor output" width="760">
+  <img src="https://raw.githubusercontent.com/k1n0F/vramsuite/main/assets/doctor.svg" alt="vramsuite doctor output" width="760">
 </p>
 
 ## Commands
 
 | Command | What it does | Docs |
 |---|---|---|
-| `vramsuite doctor` | GPU profile, driver memory, `.vramcard` file | [Device profile](docs/device-profile.md) |
-| `vramsuite doctor --compute-check` | cuBLAS / cuBLASLt FP32 and FP8 GEMM correctness | [Compute check](docs/device-profile.md#compute-check) |
-| `vramsuite doctor --probe --estimate-mb N` | Safe allocatable budget and OOM risk | [Probe and risk](docs/probe-and-risk.md) |
-| `vramsuite inspect <model>` | Exact weight sizes per dtype from `.safetensors` headers | [Model inspection](docs/model-inspection.md) |
-| `vramsuite processes [--watch S]` | VRAM per process, with peaks | [Process tracking](docs/process-tracking.md) |
-| `vramsuite transfer` | Real RAM <-> VRAM bandwidth over PCIe | [Transfer benchmark](docs/transfer.md) |
-| `vramsuite estimate <models>` | Will models fit in VRAM, and what offloading the rest costs per step | [Memory estimate](docs/estimate.md) |
-| `vramsuite estimate --workflow <file.json>` | The same for a ComfyUI workflow, with suggestions: FP8 encoder, size that fits, offload and reload cost | [Memory estimate](docs/estimate.md#comfyui-workflows) |
-| `vramsuite profile` | Records peak VRAM and run time of the next ComfyUI prompts; `estimate` uses them | [Workflow profiles](docs/profiles.md) |
-| `vramsuite analyze-workflow <file or folder>` | Models, resolution / frames / steps, config hash and risky patterns of ComfyUI workflows | [Workflow analysis](docs/workflow-analysis.md) |
-| `vramsuite compare a b` | Diff of two `.vramcard` profiles | [`.vramcard` format](docs/vramcard.md) |
-| `vramsuite validate card.json` | Structure and sanity check of a `.vramcard` (exit code 1 if invalid) | [`.vramcard` format](docs/vramcard.md#validating-a-card) |
+| `vramsuite doctor` | GPU profile, driver memory, `.vramcard` file | [Device profile](https://github.com/k1n0F/vramsuite/blob/main/docs/device-profile.md) |
+| `vramsuite doctor --compute-check` | cuBLAS / cuBLASLt FP32 and FP8 GEMM correctness | [Compute check](https://github.com/k1n0F/vramsuite/blob/main/docs/device-profile.md#compute-check) |
+| `vramsuite doctor --probe --estimate-mb N` | Safe allocatable budget and OOM risk | [Probe and risk](https://github.com/k1n0F/vramsuite/blob/main/docs/probe-and-risk.md) |
+| `vramsuite inspect <model>` | Exact weight sizes per dtype from `.safetensors` headers | [Model inspection](https://github.com/k1n0F/vramsuite/blob/main/docs/model-inspection.md) |
+| `vramsuite processes [--watch S]` | VRAM per process, with peaks | [Process tracking](https://github.com/k1n0F/vramsuite/blob/main/docs/process-tracking.md) |
+| `vramsuite transfer` | Real RAM <-> VRAM bandwidth over PCIe | [Transfer benchmark](https://github.com/k1n0F/vramsuite/blob/main/docs/transfer.md) |
+| `vramsuite estimate <models>` | Will models fit in VRAM, and what offloading the rest costs per step | [Memory estimate](https://github.com/k1n0F/vramsuite/blob/main/docs/estimate.md) |
+| `vramsuite estimate --workflow <file.json>` | The same for a ComfyUI workflow, with suggestions: FP8 encoder, size that fits, offload and reload cost | [Memory estimate](https://github.com/k1n0F/vramsuite/blob/main/docs/estimate.md#comfyui-workflows) |
+| `vramsuite profile` | Records peak VRAM and run time of the next ComfyUI prompts; `estimate` uses them | [Workflow profiles](https://github.com/k1n0F/vramsuite/blob/main/docs/profiles.md) |
+| `vramsuite analyze-workflow <file or folder>` | Models, resolution / frames / steps, config hash and risky patterns of ComfyUI workflows | [Workflow analysis](https://github.com/k1n0F/vramsuite/blob/main/docs/workflow-analysis.md) |
+| `vramsuite compare a b` | Diff of two `.vramcard` profiles | [`.vramcard` format](https://github.com/k1n0F/vramsuite/blob/main/docs/vramcard.md) |
+| `vramsuite validate card.json` | Structure and sanity check of a `.vramcard` (exit code 1 if invalid) | [`.vramcard` format](https://github.com/k1n0F/vramsuite/blob/main/docs/vramcard.md#validating-a-card) |
+| `vramsuite bundle` | Anonymized zip of the card, its validation and workflow profiles, to share | [Bundle](https://github.com/k1n0F/vramsuite/blob/main/docs/bundle.md) |
 
-Every command supports `--json`. Full documentation: [docs/](docs/README.md).
+Every command supports `--json`. Full documentation: [docs/](https://github.com/k1n0F/vramsuite/blob/main/docs/README.md).
 
 ## Why native
 
@@ -57,26 +75,26 @@ Every command supports `--json`. Full documentation: [docs/](docs/README.md).
 - **Observes from outside.** ComfyUI, games and browsers are measured through OS and driver counters; nothing has to run inside them.
 - **Explicit and bounded.** Nothing heavy runs by default, every allocation is released, and a value that cannot be read is reported with a reason instead of disappearing.
 
-More: [Native backends](docs/native-backends.md).
+More: [Native backends](https://github.com/k1n0F/vramsuite/blob/main/docs/native-backends.md).
 
 ## See it work
 
 **Who holds VRAM right now** — `vramsuite processes`
 
 <p align="center">
-  <img src="assets/processes.svg" alt="vramsuite processes output" width="760">
+  <img src="https://raw.githubusercontent.com/k1n0F/vramsuite/main/assets/processes.svg" alt="vramsuite processes output" width="760">
 </p>
 
 **How big a model really is** — `vramsuite inspect` on a WAN 2.2 14B NVFP4 checkpoint: FP8 and packed FP4 weights, read from the header in milliseconds
 
 <p align="center">
-  <img src="assets/inspect.svg" alt="vramsuite inspect output" width="760">
+  <img src="https://raw.githubusercontent.com/k1n0F/vramsuite/main/assets/inspect.svg" alt="vramsuite inspect output" width="760">
 </p>
 
 **What offloading costs** — `vramsuite transfer`
 
 <p align="center">
-  <img src="assets/transfer.svg" alt="vramsuite transfer output" width="760">
+  <img src="https://raw.githubusercontent.com/k1n0F/vramsuite/main/assets/transfer.svg" alt="vramsuite transfer output" width="760">
 </p>
 
 ## Real numbers
@@ -144,6 +162,7 @@ vramsuite/
     profile.py         Passive ComfyUI run capture: peak VRAM + run time per config hash
     advise.py          Suggestions with numbers for a workflow estimate
     comfy.py           Workflow file -> analysis + profile + estimate + suggestions
+    bundle.py          Anonymized zip of card, validation and profiles
     compare.py         .vramcard comparison
     reports.py         Rich terminal report rendering
     runtime.py         OS/Python/WSL/container detection
@@ -199,6 +218,7 @@ print(run_transfer_benchmark()["results"])
 - [x] Offline workflow analysis: settings, graph / config hashes, risky patterns (v0.2)
 - [x] Workflow profiles: real peak VRAM and run time from ComfyUI, used by estimate (v0.3)
 - [x] Suggestions with numbers: FP8 variants on disk, largest size that fits, offload and reload cost (v0.4)
+- [x] PyPI package with a `[compute]` extra, Windows exe on GitHub Releases, anonymized bundle (v0.5)
 
 Out of scope (separate kernel project): custom attention kernels, FP4 block-scaled GEMM, kernel autotuning.
 
@@ -216,8 +236,8 @@ Other NVIDIA GPUs should work; FP8 compute checks need Ada (sm_89) or newer.
 
 ## Status
 
-Alpha (v0.4). The CLI, `.vramcard` format and Python API can still change between versions.
+Alpha (v0.5). The CLI, `.vramcard` format and Python API can still change between versions.
 
 ## License
 
-[MIT](LICENSE) © k1n0F
+[MIT](https://github.com/k1n0F/vramsuite/blob/main/LICENSE) © k1n0F

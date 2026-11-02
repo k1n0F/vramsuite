@@ -15,6 +15,7 @@ The main [README](../README.md) is the overview. These pages go deeper: what eve
 - [Workflow profiles](profiles.md) — `profile`, real peak VRAM and run time of ComfyUI runs, used by `estimate`
 - [Transfer benchmark](transfer.md) — `transfer`, real RAM <-> VRAM bandwidth over PCIe
 - [`.vramcard` format](vramcard.md) — every section of the profile, `compare` and `validate`
+- [Bundle](bundle.md) — `bundle`, an anonymized zip of the card, its validation and profiles to share
 - [Native backends](native-backends.md) — how VRAM Suite talks to NVIDIA libraries without PyTorch
 
 ## Commands at a glance
@@ -32,6 +33,7 @@ uv run vramsuite analyze-workflow workflows/                       # settings, h
 uv run vramsuite profile --runs 2                                  # record real ComfyUI runs
 uv run vramsuite compare a.vramcard.json b.vramcard.json
 uv run vramsuite validate system.vramcard.json
+uv run vramsuite bundle                  # anonymized zip to share
 ```
 
 Every command supports `--json` for machine-readable output.
@@ -45,3 +47,5 @@ These rules apply to every page:
 - Nothing heavy runs by default. Probes and compute checks need an explicit flag.
 - Every resource is released, even when a step fails.
 - A value that cannot be read is reported as unavailable with a reason, not silently dropped.
+
+For maintainers: [Releasing](releasing.md) — PyPI, the Windows exe and GitHub Releases.

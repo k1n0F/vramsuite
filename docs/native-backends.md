@@ -2,7 +2,7 @@
 
 VRAM Suite talks to NVIDIA libraries directly through Python `ctypes`.
 
-It does not import PyTorch, Triton, CuPy, or `pynvml`. The runtime dependencies are only `typer`, `rich` and `pydantic`.
+It does not import PyTorch, Triton, CuPy, or `pynvml`. The runtime dependencies are only `typer` and `rich`.
 
 ## Why native
 

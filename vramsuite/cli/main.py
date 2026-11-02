@@ -8,11 +8,14 @@ Status:
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
+from vramsuite import __version__
 from vramsuite.core.doctor import run_doctor
 from vramsuite.core.vramcard import load_vramcard, save_vramcard
 from vramsuite.core.compare import compare_vramcards
@@ -23,6 +26,7 @@ from vramsuite.core.estimate import DEFAULT_RESERVE_MB, estimate_workflow
 from vramsuite.core.comfy import estimate_comfy_workflow
 from vramsuite.core.workflow import analyze_folder, analyze_workflow
 from vramsuite.core.validate import validate_vramcard
+from vramsuite.core.bundle import create_bundle
 from vramsuite.core.profile import DEFAULT_COMFY_URL, DEFAULT_PROFILES_DIR, capture_run, save_run
 
 
@@ -58,10 +62,23 @@ app = typer.Typer(
 console = Console()
 
 
+def _print_version(value: bool) -> None:
+    if value:
+        console.print(f"vramsuite {__version__}")
+        raise typer.Exit()
+
+
 @app.callback()
-def main() -> None:
-    """Predictive GPU memory framework for AI inference workflows."""
-    pass
+def main(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_print_version,
+        is_eager=True,
+        help="Show the version and exit.",
+    ),
+) -> None:
+    """Native GPU memory diagnostics for local AI: will it fit in VRAM, and what does offloading cost."""
 
 
 @app.command()
@@ -462,6 +479,51 @@ def estimate(
         return
 
     print_estimate_table(console, info)
+
+
+@app.command()
+def bundle(
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Zip file to write. Default: vramsuite-bundle-<date>.zip in the current folder.",
+    ),
+    card: Path | None = typer.Option(
+        None,
+        "--card",
+        help="Use this .vramcard instead of creating a fresh one (e.g. one made with --probe).",
+    ),
+    profiles_dir: Path = typer.Option(
+        DEFAULT_PROFILES_DIR,
+        "--profiles-dir",
+        help="Profiles from `vramsuite profile` to include.",
+    ),
+) -> None:
+    """Pack the card, its validation and workflow profiles into an anonymized zip to share."""
+    try:
+        vramcard = load_vramcard(card) if card else run_doctor()["vramcard"]
+    except (OSError, ValueError) as exc:
+        console.print(f"[red]Cannot read card:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    if output is None:
+        output = Path(f"vramsuite-bundle-{datetime.now():%Y%m%d-%H%M%S}.zip")
+    manifest = create_bundle(output, vramcard, profiles_dir)
+
+    table = Table(title="Bundle")
+    table.add_column("File", style="bold")
+    for name in manifest["files"] + ["manifest.json"]:
+        table.add_row(name)
+    console.print(table)
+    console.print(f"[green]Saved:[/green] {manifest['path']}")
+    counts = manifest["redacted"]["counts"]
+    console.print(
+        f"Removed: {', '.join(f'{key} x{count}' for key, count in sorted(counts.items())) or 'nothing identifying found'}"
+        f" ({manifest['redacted']['masked']})."
+    )
+    if not manifest["card_valid"]:
+        console.print("[yellow]The card did not pass validation;[/yellow] see validation.json in the bundle.")
 
 
 @app.command()

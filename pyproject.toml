@@ -1,19 +1,45 @@
 [project]
 name = "vramsuite"
-version = "0.4.0"
-description = "Predictive GPU memory framework for AI inference workflows"
+version = "0.5.0"
+description = "Native GPU memory diagnostics for local AI: will a model or ComfyUI workflow fit in VRAM, and what does offloading cost"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
   { name = "k1n0F" }
 ]
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["cuda", "vram", "gpu", "nvml", "comfyui", "out-of-memory", "diagnostics"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Environment :: GPU :: NVIDIA CUDA",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: System :: Hardware",
+]
 
 dependencies = [
   "typer>=0.12",
   "rich>=13",
-  "pydantic>=2"
 ]
+
+[project.optional-dependencies]
+# cuBLAS / cuBLASLt for `doctor --compute-check` without the CUDA Toolkit.
+compute = [
+  "nvidia-cuda-runtime>=13",
+  "nvidia-cublas>=13",
+]
+
+[project.urls]
+Homepage = "https://github.com/k1n0F/vramsuite"
+Documentation = "https://github.com/k1n0F/vramsuite/tree/main/docs"
+Issues = "https://github.com/k1n0F/vramsuite/issues"
+Releases = "https://github.com/k1n0F/vramsuite/releases"
 
 [project.scripts]
 vramsuite = "vramsuite.cli.main:app"
@@ -36,3 +62,6 @@ testpaths = ["tests"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+[tool.hatch.build.targets.sdist]
+# An explicit list: local folders like .uv-cache or helper scripts must never ship.
+include = ["vramsuite", "tests", "docs", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
