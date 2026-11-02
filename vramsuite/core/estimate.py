@@ -90,7 +90,7 @@ def _measure_transfer(device_index: int) -> dict[str, Any]:
     }
 
 
-def _model_weights(path: Path) -> dict[str, Any]:
+def model_weights(path: Path) -> dict[str, Any]:
     if path.is_dir() or path.suffix.lower() == ".safetensors":
         model = inspect_model(path)
         return {"name": path.name, "path": str(path), "weights_mb": model["total_mb"], "dtypes": list(model["by_dtype"])}
@@ -118,7 +118,7 @@ def estimate_workflow(
     largest_only plans for the largest model alone, for runtimes that load
     models one stage at a time (ComfyUI).
     """
-    models = [_model_weights(Path(path)) for path in model_paths]
+    models = [model_weights(Path(path)) for path in model_paths]
     all_weights_mb = sum(model["weights_mb"] for model in models)
     weights_mb = max(model["weights_mb"] for model in models) if largest_only else all_weights_mb
 

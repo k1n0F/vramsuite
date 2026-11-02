@@ -11,6 +11,7 @@ The main [README](../README.md) is the overview. These pages go deeper: what eve
 - [Model inspection](model-inspection.md) — `inspect`, exact weight sizes from `.safetensors` headers
 - [Process tracking](process-tracking.md) — `processes`, per-process VRAM observed from outside
 - [Workflow memory estimate](estimate.md) — `estimate`, will models or a ComfyUI workflow fit and what offloading costs
+- [Workflow analysis](workflow-analysis.md) — `analyze-workflow`, models, settings, hashes and risky patterns of ComfyUI workflows
 - [Transfer benchmark](transfer.md) — `transfer`, real RAM <-> VRAM bandwidth over PCIe
 - [`.vramcard` format](vramcard.md) — every section of the profile, `compare` and `validate`
 - [Native backends](native-backends.md) — how VRAM Suite talks to NVIDIA libraries without PyTorch
@@ -26,6 +27,7 @@ uv run vramsuite processes --watch 60    # peak VRAM per process over 60 seconds
 uv run vramsuite transfer                # RAM <-> VRAM bandwidth, pinned and pageable
 uv run vramsuite estimate model.safetensors --activations-mb 3000  # fits? offload cost?
 uv run vramsuite estimate --workflow workflow.json                 # same for a ComfyUI workflow
+uv run vramsuite analyze-workflow workflows/                       # settings, hashes, warnings
 uv run vramsuite compare a.vramcard.json b.vramcard.json
 uv run vramsuite validate system.vramcard.json
 ```

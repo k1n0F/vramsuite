@@ -20,7 +20,7 @@ from vramsuite.core.model_inspect import ModelInspectError, inspect_model
 from vramsuite.core.processes import snapshot_gpu_processes, watch_gpu_processes
 from vramsuite.core.transfer import run_transfer_benchmark
 from vramsuite.core.estimate import DEFAULT_RESERVE_MB, estimate_workflow
-from vramsuite.core.workflow import estimate_comfy_workflow
+from vramsuite.core.workflow import analyze_folder, analyze_workflow, estimate_comfy_workflow
 from vramsuite.core.validate import validate_vramcard
 
 
@@ -41,6 +41,8 @@ from vramsuite.core.reports import (
     print_processes_table,
     print_transfer_table,
     print_estimate_table,
+    print_folder_analysis,
+    print_workflow_analysis,
     print_validation,
     print_vramcard_compare_table,
 )
@@ -335,6 +337,42 @@ def transfer(
         return
 
     print_transfer_table(console, info)
+
+
+@app.command("analyze-workflow")
+def analyze_workflow_command(
+    path: Path = typer.Argument(
+        ...,
+        help="ComfyUI workflow JSON (UI or API format), or a folder of them.",
+    ),
+    models_dir: Path | None = typer.Option(
+        None,
+        "--models-dir",
+        help="ComfyUI models folder. Default: found above the workflow file.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the analysis as JSON.",
+    ),
+) -> None:
+    """Offline workflow analysis: models, settings, hashes and risky patterns."""
+    try:
+        if path.is_dir():
+            info = analyze_folder(path, models_dir)
+        else:
+            info = analyze_workflow(path, models_dir)
+    except (ModelInspectError, OSError, ValueError) as exc:
+        console.print(f"[red]Cannot analyze:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    if json_output:
+        console.print_json(json.dumps(info, indent=2, ensure_ascii=False))
+    elif path.is_dir():
+        print_folder_analysis(console, info)
+    else:
+        print_workflow_analysis(console, info)
+        console.print(f"[yellow]Next:[/yellow] vramsuite estimate --workflow \"{path}\" to check it against this GPU")
 
 
 @app.command()

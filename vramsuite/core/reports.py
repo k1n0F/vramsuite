@@ -339,6 +339,85 @@ ESTIMATE_STATUS = {
 }
 
 
+def _number(value: Any) -> str:
+    """Settings values: numbers as is, linked widgets as '?'."""
+    return str(value) if isinstance(value, (int, float)) else "?"
+
+
+def _latent_size(latent: dict[str, Any]) -> str:
+    size = f"{_number(latent.get('width'))}x{_number(latent.get('height'))}"
+    frames = latent.get("length", latent.get("num_frames"))
+    return f"{size}, {_number(frames)} frames" if frames not in (None, 1) else size
+
+
+def print_workflow_analysis(console: Console, info: dict[str, Any]) -> None:
+    """Print the offline analysis of one ComfyUI workflow."""
+    summary = Table(title=f"{info['name']} ({info['format']} format, {info['node_count']} nodes)")
+    summary.add_column("Field", style="bold")
+    summary.add_column("Value")
+    summary.add_row("Graph hash", info["graph_hash"])
+    summary.add_row("Config hash", info["config_hash"])
+    summary.add_row("Weights MB", f"{info['weights_mb']['largest']} largest, {info['weights_mb']['all']} all")
+    summary.add_row("Models folder", str(info["models_dir"]))
+    console.print(summary)
+
+    models = Table(title="Models")
+    models.add_column("File", style="bold")
+    models.add_column("Node")
+    models.add_column("MB", justify="right")
+    models.add_column("Dtypes")
+    for model in info["models"]:
+        if model["path"] is None:
+            models.add_row(model["name"], model["node_type"], "", "[yellow]not found[/yellow]")
+        else:
+            models.add_row(model["name"], model["node_type"], str(model["weights_mb"]), ", ".join(model["dtypes"]))
+    console.print(models)
+
+    settings = Table(title="Settings")
+    settings.add_column("Node", style="bold")
+    settings.add_column("Values")
+    for latent in info["latents"]:
+        linked = {value for value in latent.values() if isinstance(value, str) and value.startswith("linked from")}
+        note = f" [dim]({'; '.join(sorted(linked))})[/dim]" if linked else ""
+        settings.add_row(latent["node_type"], f"{_latent_size(latent)}, batch {_number(latent.get('batch_size', 1))}{note}")
+    for sampler in info["samplers"]:
+        values = [f"{_number(sampler['steps'])} steps", f"cfg {_number(sampler.get('cfg'))}"]
+        values += [str(sampler[key]) for key in ("sampler_name", "scheduler") if key in sampler]
+        settings.add_row(sampler["node_type"], ", ".join(values))
+    console.print(settings)
+
+    for warning in info["warnings"]:
+        console.print(f"[yellow]Warning:[/yellow] {warning['message']}")
+
+
+def print_folder_analysis(console: Console, info: dict[str, Any]) -> None:
+    """Print one summary row per workflow in a folder."""
+    table = Table(title=f"Workflows in {info['folder']}")
+    table.add_column("Workflow", style="bold")
+    table.add_column("Models", justify="right")
+    table.add_column("Largest MB", justify="right")
+    table.add_column("All MB", justify="right")
+    table.add_column("Size")
+    table.add_column("Steps", justify="right")
+    table.add_column("Warnings", justify="right")
+    for workflow in info["workflows"]:
+        found = sum(1 for model in workflow["models"] if model["path"])
+        steps = [_number(sampler["steps"]) for sampler in workflow["samplers"]]
+        warnings = len(workflow["warnings"])
+        table.add_row(
+            workflow["name"],
+            f"{found}/{len(workflow['models'])}",
+            str(workflow["weights_mb"]["largest"]),
+            str(workflow["weights_mb"]["all"]),
+            "; ".join(_latent_size(latent) for latent in workflow["latents"]),
+            "+".join(steps),
+            f"[yellow]{warnings}[/yellow]" if warnings else "0",
+        )
+    console.print(table)
+    if info["skipped"]:
+        console.print(f"[dim]Skipped {len(info['skipped'])} JSON files that are not workflows.[/dim]")
+
+
 def print_estimate_table(console: Console, info: dict[str, Any]) -> None:
     """Print the VRAM plan for a set of models and its offloading cost."""
     workflow = info.get("workflow")
