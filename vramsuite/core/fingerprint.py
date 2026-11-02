@@ -19,6 +19,7 @@ from typing import Any
 from vramsuite.core.runtime import collect_runtime_info, runtime_info_to_dict
 from vramsuite.backends.nvml import collect_nvml_info_dict
 from vramsuite.backends.cuda import collect_cuda_runtime_info_dict
+from vramsuite.backends.cuda_driver import collect_cuda_driver_info_dict
 from vramsuite.backends.cublas import collect_cublas_info_dict
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ def collect_torch_info() -> TorchInfo:
     Windows then resolves our toolkit cuBLAS dependency (cublasLt64_13.dll) by
     name to torch's copy, mixing two cuBLAS versions (CUBLAS_STATUS_INVALID_VALUE),
     and torch's CUDA context would also skew every memory reading.
-    GPU facts come from NVML / the native CUDA runtime instead.
+    GPU facts come from NVML / the native CUDA driver and runtime instead.
     """
     try:
         version = importlib.metadata.version("torch")
@@ -80,6 +81,7 @@ def collect_fingerprint() -> dict[str, Any]:
     runtime = collect_runtime_info()
     torch_info = collect_torch_info()
     nvml_info = collect_nvml_info_dict()
+    cuda_driver_info = collect_cuda_driver_info_dict()
     cuda_runtime_info = collect_cuda_runtime_info_dict()
     cublas_info= collect_cublas_info_dict()
 
@@ -87,6 +89,7 @@ def collect_fingerprint() -> dict[str, Any]:
         "runtime": runtime_info_to_dict(runtime),
         "torch": asdict(torch_info),
         "nvml": nvml_info,
+        "cuda_driver": cuda_driver_info,
         "cuda_runtime": cuda_runtime_info,
         "cublas": cublas_info,
     }

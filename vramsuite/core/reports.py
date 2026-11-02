@@ -6,17 +6,38 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
+from vramsuite import __version__
+from vramsuite.core.doctor import TOOLKIT_MISSING
 
 
 def print_doctor_header(console: Console) -> None:
     """Print the VRAM Suite doctor header."""
     console.print(
         Panel(
-            "[bold cyan]VRAM Suite Doctor[/bold cyan]\n"
-            "Status: pre-alpha / v0.1-alpha foundation",
+            f"[bold cyan]VRAM Suite Doctor[/bold cyan] v{__version__}",
             border_style="cyan",
         )
     )
+
+
+def print_capabilities_table(console: Console, vramcard: dict[str, Any]) -> None:
+    """Which native libraries were found, and what each one enables."""
+    stack = vramcard.get("stack") or {}
+    rows = (
+        ("NVML", stack.get("nvml_available"), "NVIDIA driver", "memory, device details, PCIe, processes"),
+        ("CUDA driver API", (stack.get("cuda_driver") or {}).get("available"), "NVIDIA driver", "device attributes, --probe, transfer, estimate"),
+        ("CUDA runtime", (stack.get("cuda_runtime") or {}).get("available"), "CUDA Toolkit", "--compute-check"),
+        ("cuBLAS", (stack.get("cublas") or {}).get("available"), "CUDA Toolkit", "--compute-check"),
+    )
+
+    table = Table(title="Capabilities")
+    table.add_column("Library", style="bold")
+    table.add_column("Found")
+    table.add_column("Comes with")
+    table.add_column("Enables")
+    for name, found, source, enables in rows:
+        table.add_row(name, "[green]yes[/green]" if found else "[yellow]no[/yellow]", source, enables)
+    console.print(table)
 
 
 def print_runtime_table(console: Console, runtime_info: dict[str, Any]) -> None:
@@ -196,6 +217,11 @@ def print_compute_check_table(console: Console, compute_info: dict[str, Any] | N
         )
 
     console.print(table)
+    if any(result.get("error") == TOOLKIT_MISSING for result in compute_info.values()):
+        console.print(
+            "[yellow]Compute checks need cuBLAS from the CUDA Toolkit[/yellow] "
+            "(https://developer.nvidia.com/cuda-downloads). Everything else works with only the NVIDIA driver."
+        )
 
 
 def print_model_table(console: Console, model_info: dict[str, Any]) -> None:

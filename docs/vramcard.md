@@ -34,7 +34,7 @@ generated_at    UTC timestamp of the scan
 gpu             short GPU summary
 device          detailed native device profile
 environment     OS and Python runtime
-stack           PyTorch metadata, CUDA runtime, cuBLAS, NVML status
+stack           PyTorch metadata, CUDA driver and runtime, cuBLAS, NVML status
 memory          driver memory at scan time (+ probe results)
 probe           optional, with --probe
 compute_check   optional, with --compute-check
@@ -93,6 +93,15 @@ What is installed around the GPU:
   "cuda_available": false,
   "torch_cuda_version": null,
   "cuda_device_count": 0,
+  "cuda_driver": {
+    "available": true,
+    "library_path": "C:\\Windows\\system32\\nvcuda.dll",
+    "driver_version_text": "13.4",
+    "device_count": 1,
+    "device_index": 0,
+    "free_memory_mb": 14209,
+    "total_memory_mb": 16302
+  },
   "cuda_runtime": {
     "available": true,
     "library_path": "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.0\\bin\\x64\\cudart64_13.dll",
@@ -115,6 +124,8 @@ What is installed around the GPU:
 
 The `torch_*` fields come from package metadata only. PyTorch is never imported, so `cuda_available` is `null` when torch is installed and `false` when it is not. `torch_cuda_version` is read from the version tag, for example `2.12.0+cu130` → `13.0`.
 
+`cuda_driver` comes with every NVIDIA driver; `cuda_runtime` and `cublas` are `available: false` without the CUDA Toolkit, which only disables `--compute-check`.
+
 `library_path` shows which DLL / `.so` was actually loaded. This is useful when several CUDA versions are installed.
 
 ### `memory`
@@ -134,7 +145,7 @@ The `torch_*` fields come from package metadata only. PyTorch is never imported,
 
 `driver_*` values come from NVML. `process_allocatable_mb`, `safe_allocatable_mb` and `safety_margin_mb` are filled only by `--probe`.
 
-`cuda_runtime_free_mb` is free memory as `cudaMemGetInfo` sees it. On Windows (WDDM) it is often higher than `driver_free_at_scan_mb`: Windows can page other processes' allocations out of VRAM, so the CUDA runtime reports memory that is not free right now but can be made free.
+`cuda_runtime_free_mb` is free memory as CUDA sees it (`cuMemGetInfo`, the same number `cudaMemGetInfo` returns; the name is kept for compatibility). On Windows (WDDM) it is often higher than `driver_free_at_scan_mb`: Windows can page other processes' allocations out of VRAM, so the CUDA runtime reports memory that is not free right now but can be made free.
 
 ### `probe`, `risk_estimate`
 

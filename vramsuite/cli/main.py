@@ -27,6 +27,7 @@ from vramsuite.core.validate import validate_vramcard
 
 from vramsuite.core.reports import (
     print_doctor_header,
+    print_capabilities_table,
     print_nvml_devices_table,
     print_nvml_table,
     print_runtime_table,
@@ -140,6 +141,7 @@ def doctor(
     
     
     print_doctor_header(console)
+    print_capabilities_table(console, vramcard)
     print_runtime_table(console, runtime)
     print_torch_table(console, torch_info)
     print_nvml_table(console, nvml_info)
@@ -164,7 +166,7 @@ def doctor(
             )
         )
 
-    console.print("[yellow]Next:[/yellow] workflow profiling and OOM risk estimation")
+    console.print("[yellow]Next:[/yellow] vramsuite estimate --workflow <file.json> to check a ComfyUI workflow against this card")
 
 @app.command()
 def compare(

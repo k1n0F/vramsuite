@@ -132,7 +132,7 @@ class LoadedNativeLibrary:
                     self._dll_directory_handle = None
 
         message = (
-            f"{self.logical_name} native library could not found. Tried: "
+            f"{self.logical_name} native library could not be found. Tried: "
             + "; ".join(errors)
         )
 

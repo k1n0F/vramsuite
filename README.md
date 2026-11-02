@@ -200,7 +200,7 @@ Out of scope (separate kernel project): custom attention kernels, FP4 block-scal
 |---|---|
 | GPU | NVIDIA GeForce RTX 5080 (Blackwell, sm_120, 16 GB) |
 | Driver | 617.14, CUDA driver 13.4 |
-| CUDA Toolkit | 13.0 (only needed for `doctor --compute-check` and cudart device attributes) |
+| CUDA Toolkit | 13.0 (only needed for `doctor --compute-check`) |
 | OS | Windows 11 (WDDM), WSL2 |
 | Python | 3.12 via `uv` |
 

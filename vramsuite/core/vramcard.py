@@ -68,9 +68,10 @@ def _select_nvml_device(
 def _get_primary_gpu(
         nvml_device: dict[str, Any] | None,
         cuda_attributes: dict[str, Any],
+        cuda_source: str,
         torch_info: dict[str, Any],
 ) -> dict[str, Any]:
-    """Source priority: NVML > native CUDA runtime > torch (lower ones only fill gaps)."""
+    """Source priority: NVML > native CUDA (driver or runtime) > torch (lower ones only fill gaps)."""
     gpu = _empty_gpu_info()
     gpu["source"] = None
 
@@ -102,7 +103,7 @@ def _get_primary_gpu(
     torch_devices = torch_info.get("devices") if torch_info.get("cuda_available") else None
     torch_device = torch_devices[0] if torch_devices else {}
 
-    for fallback, source in ((native, "cuda_runtime"), (torch_device, "torch")):
+    for fallback, source in ((native, cuda_source), (torch_device, "torch")):
         for key in ("name", "total_vram_mb", "compute_capability", "major", "minor",
                     "multi_processor_count"):
             if gpu.get(key) is None and fallback.get(key) is not None:
@@ -141,11 +142,11 @@ def _get_device_profile(
         nvml_info: dict[str, Any],
         nvml_device: dict[str, Any] | None,
         nvml_match: str,
-        cuda_runtime_info: dict[str, Any],
+        cuda_device_index: int | None,
+        attributes: dict[str, Any],
 ) -> dict[str, Any]:
     """Hardware limits of the primary GPU, as needed for kernel design."""
     details = nvml_device.get("details") if nvml_device else None
-    attributes = cuda_runtime_info.get("attributes") or {}
 
     memory_clock_khz = attributes.get("memory_clock_rate_khz")
     bus_width_bits = attributes.get("global_memory_bus_width_bits")
@@ -160,7 +161,7 @@ def _get_device_profile(
     )
 
     return {
-        "cuda_device_index": cuda_runtime_info.get("current_device"),
+        "cuda_device_index": cuda_device_index,
         "nvml_device_index": nvml_device.get("index") if nvml_device else None,
         "nvml_match": nvml_match,
         "nvml": details,
@@ -183,9 +184,17 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
     runtime_info = fingerprint["runtime"]
     torch_info = fingerprint["torch"]
     nvml_info = fingerprint["nvml"]
+    cuda_driver_info = fingerprint.get("cuda_driver") or {}
     cuda_runtime_info = fingerprint.get("cuda_runtime", {})
     cublas_info = fingerprint.get("cublas", {})
-    cuda_attributes = cuda_runtime_info.get("attributes") or {}
+
+    # The driver API comes with every NVIDIA driver; cudart only with the CUDA
+    # Toolkit. Both report the same attributes and the same free memory.
+    if cuda_driver_info.get("available"):
+        cuda, cuda_source, cuda_device_index = cuda_driver_info, "cuda_driver", cuda_driver_info.get("device_index")
+    else:
+        cuda, cuda_source, cuda_device_index = cuda_runtime_info, "cuda_runtime", cuda_runtime_info.get("current_device")
+    cuda_attributes = cuda.get("attributes") or {}
 
     # One physical GPU for every section below, matched across NVML and CUDA.
     nvml_device, nvml_match = _select_nvml_device(nvml_info, cuda_attributes)
@@ -193,6 +202,7 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
     primary_gpu = _get_primary_gpu(
         nvml_device=nvml_device,
         cuda_attributes=cuda_attributes,
+        cuda_source=cuda_source,
         torch_info=torch_info,
     )
 
@@ -200,12 +210,13 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
         nvml_device=nvml_device,
         primary_gpu=primary_gpu,
     )
-    # cudaMemGetInfo; on Windows WDDM it can exceed NVML free (WDDM may page
-    # other processes' VRAM out), so both are kept.
-    memory_info["cuda_runtime_free_mb"] = cuda_runtime_info.get("free_memory_mb")
+    # cuMemGetInfo / cudaMemGetInfo; on Windows WDDM it can exceed NVML free
+    # (WDDM may page other processes' VRAM out), so both are kept. The field
+    # name predates the driver API backend and is kept for compatibility.
+    memory_info["cuda_runtime_free_mb"] = cuda.get("free_memory_mb")
 
     device_profile = _get_device_profile(
-        nvml_info, nvml_device, nvml_match, cuda_runtime_info
+        nvml_info, nvml_device, nvml_match, cuda_device_index, cuda_attributes
     )
     cuda_runtime_summary = {
         key: value for key, value in cuda_runtime_info.items() if key != "attributes"
@@ -227,6 +238,7 @@ def create_vramcard(fingerprint: dict[str, Any] | None = None) -> dict[str, Any]
             "torch_cuda_version": torch_info.get("cuda_version"),
             "cuda_device_count": torch_info.get("device_count"),
 
+            "cuda_driver": {key: value for key, value in cuda_driver_info.items() if key != "attributes"},
             "cuda_runtime": cuda_runtime_summary,
             "cublas": cublas_info,
 

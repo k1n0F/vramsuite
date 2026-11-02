@@ -15,11 +15,18 @@ from __future__ import annotations
 import ctypes
 import platform
 from types import TracebackType
+from typing import Any
 
-from vramsuite.backends.cuda import CUDA_DEVICE_ATTRIBUTES, CudaMemcpyKind, CudaRuntime
+from vramsuite.backends.cuda import (
+    CUDA_DEVICE_ATTRIBUTES,
+    CudaMemcpyKind,
+    CudaRuntime,
+    _format_runtime_version,
+)
 from vramsuite.backends.native_loader import load_native_library
 
 CUDA_SUCCESS = 0
+BYTES_PER_MB = 1024 * 1024
 # CUdeviceptr is a 64-bit integer, not a host pointer.
 CUdeviceptr = ctypes.c_uint64
 
@@ -220,3 +227,41 @@ class CudaDriver:
 
     def synchronize(self) -> None:
         self._check_status(self._require_context().cuCtxSynchronize(), "cuCtxSynchronize")
+
+
+def collect_cuda_driver_info_dict(device_index: int = 0) -> dict[str, Any]:
+    """Driver version, memory and device attributes; needs only the NVIDIA driver."""
+    info: dict[str, Any] = {
+        "available": False,
+        "error": None,
+        "library_path": None,
+        "driver_version": None,
+        "driver_version_text": None,
+        "device_count": None,
+        "device_index": None,
+        "free_memory_mb": None,
+        "total_memory_mb": None,
+        "attributes": None,
+    }
+    try:
+        with CudaDriver() as cuda:
+            info["library_path"] = cuda.library_path
+            info["driver_version"] = cuda.driver_version()
+            info["driver_version_text"] = _format_runtime_version(info["driver_version"])
+            info["device_count"] = cuda.device_count()
+            if not 0 <= device_index < info["device_count"]:
+                info["error"] = f"Invalid device index {device_index}. Device count: {info['device_count']}"
+                return info
+
+            cuda.set_device(device_index)
+            free_bytes, total_bytes = cuda.memory_info()
+            info.update({
+                "available": True,
+                "device_index": device_index,
+                "free_memory_mb": free_bytes // BYTES_PER_MB,
+                "total_memory_mb": total_bytes // BYTES_PER_MB,
+                "attributes": cuda.device_attributes(device_index),
+            })
+    except Exception as exc:
+        info["error"] = f"CUDA driver API error: {exc}"
+    return info

@@ -10,10 +10,14 @@ from __future__ import annotations
 from typing import Any
 
 
+from vramsuite.backends.native_loader import NativeLibraryLoadError
 from vramsuite.core.fingerprint import collect_fingerprint
 from vramsuite.core.vramcard import create_vramcard
 from vramsuite.core.probe import probe_result_to_dict, run_cuda_probe
 from vramsuite.core.risk import estimate_oom_risk, risk_estimate_to_dict
+
+
+TOOLKIT_MISSING = "CUDA Toolkit libraries not found (cudart / cuBLAS)"
 
 
 def run_compute_checks() -> dict[str, Any]:
@@ -44,6 +48,8 @@ def run_compute_checks() -> dict[str, Any]:
                 "max_abs_error": result["max_abs_error"],
                 "error": None,
             }
+        except NativeLibraryLoadError:
+            results[name] = {"passed": False, "max_abs_error": None, "error": TOOLKIT_MISSING}
         except Exception as exc:
             results[name] = {"passed": False, "max_abs_error": None, "error": str(exc)}
 

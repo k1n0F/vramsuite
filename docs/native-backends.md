@@ -18,7 +18,7 @@ The main reasons:
 ```text
 NVML         nvml.dll / libnvidia-ml.so        memory, device details, PCIe, clocks, processes
 CUDA driver  nvcuda.dll / libcuda.so.1         allocation probe, transfer benchmark (cuMemAlloc, cuMemcpy)
-cudart       cudart64_13.dll / libcudart.so    device attributes in doctor, memory for compute checks
+cudart       cudart64_13.dll / libcudart.so    memory for compute checks; fallback for device attributes
 cuBLAS     cublas64_13.dll / libcublas.so    SGEMM
 cuBLASLt   cublasLt64_13.dll / libcublasLt.so  FP32 / FP8 matmul
 pdh, gdi32, kernel32, ntdll (Windows)        per-process GPU memory
@@ -29,11 +29,11 @@ pdh, gdi32, kernel32, ntdll (Windows)        per-process GPU memory
 NVML and the CUDA driver API are installed with every NVIDIA driver. `cudart`, cuBLAS and cuBLASLt come with the CUDA Toolkit (or NVIDIA wheels in the environment).
 
 ```text
-driver only        doctor (NVML part), processes, inspect, estimate, transfer, doctor --probe, validate, compare
-+ CUDA Toolkit     doctor device attributes from cudart, doctor --compute-check (cuBLAS / cuBLASLt)
+driver only        doctor (incl. device attributes and --probe), processes, inspect, estimate, transfer, validate, compare
++ CUDA Toolkit     doctor --compute-check (cuBLAS / cuBLASLt)
 ```
 
-The probe and the transfer benchmark use the driver API on purpose: they only allocate and copy memory, and the driver library is always there. The driver API has no implicit context, so `CudaDriver` makes the device's **primary context** current, the same one the CUDA runtime uses. Mixing both APIs in one process (`doctor --probe --compute-check`) is safe.
+`doctor` prints a **Capabilities** table with what was found on this machine. The device attributes, the probe and the transfer benchmark use the driver API on purpose: they only allocate and copy memory, and the driver library is always there. The driver API has no implicit context, so `CudaDriver` makes the device's **primary context** current, the same one the CUDA runtime uses. Mixing both APIs in one process (`doctor --probe --compute-check`) is safe.
 
 ## Library discovery
 

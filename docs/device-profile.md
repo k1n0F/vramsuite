@@ -37,12 +37,12 @@ uv run vramsuite doctor --compute-check
 The profile is built from two native sources:
 
 - **NVML** (`nvml.dll` / `libnvidia-ml.so`) — identity, PCIe link, clocks, power, temperature, utilization, driver versions
-- **CUDA runtime** (`cudart`) — `cudaDeviceGetAttribute` limits: SMs, threads, registers, shared memory, L2
+- **CUDA driver API** (`nvcuda.dll` / `libcuda.so`) — `cuDeviceGetAttribute` limits: SMs, threads, registers, shared memory, L2. Installed with the driver; the CUDA runtime (`cudart`) is used instead only if the driver API is unavailable
 
 When both sources report the same value, NVML wins. Lower-priority sources only fill gaps:
 
 ```text
-NVML  >  native CUDA runtime  >  torch metadata
+NVML  >  CUDA driver API (or runtime)  >  torch metadata
 ```
 
 ### GPU matching
