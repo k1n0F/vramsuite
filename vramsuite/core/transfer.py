@@ -1,5 +1,5 @@
 """
-Host <-> device transfer benchmark through the native CUDA runtime.
+Host <-> device transfer benchmark through the CUDA driver API.
 
 Measures what offloading actually costs on this machine: how fast weights move
 between system RAM and VRAM over the real PCIe link (which may be narrower or
@@ -13,7 +13,8 @@ import statistics
 import time
 from typing import Any
 
-from vramsuite.backends.cuda import CudaMemcpyKind, CudaRuntime
+from vramsuite.backends.cuda import CudaMemcpyKind
+from vramsuite.backends.cuda_driver import CudaDriver
 from vramsuite.backends.nvml import collect_nvml_info_dict
 from vramsuite.core.vramcard import _select_nvml_device
 
@@ -39,7 +40,7 @@ def pcie_theoretical_gb_s(generation: int | None, width: int | None) -> float | 
 
 
 def _time_copy(
-        cuda: CudaRuntime,
+        cuda: CudaDriver,
         dst: ctypes.c_void_p,
         src: ctypes.c_void_p,
         size_bytes: int,
@@ -54,7 +55,7 @@ def _time_copy(
     for _ in range(repeats):
         start = time.perf_counter()
         cuda.memcpy(dst, src, size_bytes, kind)
-        # cudaMemcpy may return before the DMA ends (D2D, small pageable copies).
+        # A copy may return before the DMA ends (D2D, small pageable copies).
         cuda.synchronize()
         seconds.append(time.perf_counter() - start)
     return seconds
@@ -81,7 +82,7 @@ def run_transfer_benchmark(
     size_bytes = size_mb * BYTES_PER_MB
     results: list[dict[str, Any]] = []
 
-    with CudaRuntime() as cuda:
+    with CudaDriver() as cuda:
         cuda.set_device(device_index)
         attributes = cuda.device_attributes(device_index)
 

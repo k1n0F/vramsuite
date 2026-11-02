@@ -4,8 +4,9 @@ Safe VRAM allocation probe.
 This module performs an optional, bounded CUDA allocation probe.
 It is intentionally conservative and must only run when explicitly requested.
 
-Allocations go straight through the native CUDA runtime (cudaMalloc/cudaFree),
-so the result reflects the driver, not a framework's caching allocator.
+Allocations go straight through the CUDA driver API (cuMemAlloc/cuMemFree),
+so the result reflects the driver, not a framework's caching allocator, and
+nothing beyond the NVIDIA driver has to be installed.
 """
 
 from __future__ import annotations
@@ -13,9 +14,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from vramsuite.backends.cuda import CudaRuntime
+from vramsuite.backends.cuda_driver import CudaDriver
 
-PROBE_BACKEND = "cuda-runtime"
+PROBE_BACKEND = "cuda-driver"
 BYTES_PER_MB = 1024 * 1024
 
 
@@ -58,7 +59,7 @@ def run_cuda_probe(
         device_index: int = 0,
 ) -> ProbeResult:
     """
-    Run a conservative CUDA allocation probe through the native CUDA runtime.
+    Run a conservative CUDA allocation probe through the CUDA driver API.
 
     This probe is bounded:
     - it never attempts more than max_probe_mb
@@ -118,11 +119,11 @@ def run_cuda_probe(
         )
 
     try:
-        cuda = CudaRuntime().__enter__()
+        cuda = CudaDriver().__enter__()
     except Exception as exc:
         return _unavailable(
-            f"CUDA runtime is not available: {exc}",
-            ["Install the NVIDIA driver and CUDA Toolkit (cudart) to run the probe."],
+            f"CUDA driver is not available: {exc}",
+            ["Install or update the NVIDIA driver to run the probe."],
         )
 
     allocations: list[Any] = []
@@ -135,7 +136,7 @@ def run_cuda_probe(
 
         for next_mb in range(step_mb, probe_limit_mb + step_mb, step_mb):
             attempted_mb = next_mb
-            # cudaMalloc is synchronous: an out-of-memory error surfaces right here.
+            # cuMemAlloc is synchronous: an out-of-memory error surfaces right here.
             allocations.append(cuda.malloc(step_mb * BYTES_PER_MB))
             allocated_mb = next_mb
 

@@ -43,7 +43,7 @@ The benchmark needs `2 × size-mb` of free VRAM and `size-mb` of free RAM for pi
 
 Five copies, each through native `cudaMemcpy`:
 
-- `host_to_device` / `device_to_host` with **pinned** host memory (`cudaMallocHost`)
+- `host_to_device` / `device_to_host` with **pinned** host memory (`cuMemHostAlloc`)
 - `host_to_device` / `device_to_host` with **pageable** host memory (an ordinary buffer)
 - `device_to_device` — a copy inside VRAM
 

@@ -11,7 +11,7 @@ Both are explicit:
 
 The probe is designed to be conservative:
 
-- It allocates through the native CUDA runtime (`cudaMalloc`); PyTorch is not needed.
+- It allocates through the CUDA driver API (`cuMemAlloc`); only the NVIDIA driver is needed, no PyTorch or CUDA Toolkit.
 - It allocates memory in configurable steps.
 - It never attempts more than `--probe-max-mb`.
 - It keeps a configurable free VRAM floor through `--probe-free-floor-mb`.
@@ -42,7 +42,7 @@ Example result:
 ```text
 Safe Probe
 Available             True
-Backend               cuda-runtime
+Backend               cuda-driver
 Attempted MB          8192
 Allocated MB          8192
 Safe Allocatable MB   6963

@@ -11,21 +11,33 @@ The main reasons:
 - **Observing without changing.** A diagnostic tool should not load 2 GB of PyTorch and its own CUDA libraries just to read how much memory is free.
 - **No DLL conflicts.** PyTorch ships its own `cublas` / `cublasLt`. On Windows, if torch is imported first, the toolkit `cublas64_13.dll` binds to torch's `cublasLt64_13.dll` by name, and cuBLAS calls fail with `CUBLAS_STATUS_INVALID_VALUE`. VRAM Suite avoids this by never importing torch.
 - **Exact control.** Every allocation, handle, and descriptor is created and released explicitly, so the tool itself does not leak memory into the numbers it reports.
-- **Same path as kernels.** Custom kernels talk to the same CUDA runtime and cuBLASLt. A profile collected this way describes what a native kernel will actually see.
+- **Same path as kernels.** Custom kernels talk to the same CUDA driver, runtime and cuBLASLt. A profile collected this way describes what a native kernel will actually see.
 
 ## Libraries
 
 ```text
-NVML       nvml.dll / libnvidia-ml.so        memory, device details, PCIe, clocks, processes
-cudart     cudart64_13.dll / libcudart.so    device attributes, cudaMalloc, memcpy
+NVML         nvml.dll / libnvidia-ml.so        memory, device details, PCIe, clocks, processes
+CUDA driver  nvcuda.dll / libcuda.so.1         allocation probe, transfer benchmark (cuMemAlloc, cuMemcpy)
+cudart       cudart64_13.dll / libcudart.so    device attributes in doctor, memory for compute checks
 cuBLAS     cublas64_13.dll / libcublas.so    SGEMM
 cuBLASLt   cublasLt64_13.dll / libcublasLt.so  FP32 / FP8 matmul
 pdh, gdi32, kernel32, ntdll (Windows)        per-process GPU memory
 ```
 
+## What needs what
+
+NVML and the CUDA driver API are installed with every NVIDIA driver. `cudart`, cuBLAS and cuBLASLt come with the CUDA Toolkit (or NVIDIA wheels in the environment).
+
+```text
+driver only        doctor (NVML part), processes, inspect, estimate, transfer, doctor --probe, validate, compare
++ CUDA Toolkit     doctor device attributes from cudart, doctor --compute-check (cuBLAS / cuBLASLt)
+```
+
+The probe and the transfer benchmark use the driver API on purpose: they only allocate and copy memory, and the driver library is always there. The driver API has no implicit context, so `CudaDriver` makes the device's **primary context** current, the same one the CUDA runtime uses. Mixing both APIs in one process (`doctor --probe --compute-check`) is safe.
+
 ## Library discovery
 
-`backends/native_loader.py` finds the CUDA libraries in this order:
+`backends/native_loader.py` finds the CUDA Toolkit libraries in this order (the driver library is found by its system name):
 
 1. The CUDA Toolkit: `CUDA_PATH`, `CUDA_HOME`, then `/usr/local/cuda`, in `bin/x64`, `bin`, `lib64`
 2. The system library search path (plain library name)
@@ -44,6 +56,7 @@ backends/
   native_loader.py   library discovery
   nvml.py            NVML: memory, device details, processes
   cuda.py            CUDA runtime: memory, attributes, malloc/memcpy
+  cuda_driver.py     CUDA driver API: same interface, needs only the NVIDIA driver
   cublas.py          cuBLAS handle and SGEMM
   cublaslt/
     runtime.py       cuBLASLt library and function signatures

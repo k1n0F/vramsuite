@@ -18,7 +18,7 @@
 
 ---
 
-VRAM Suite talks to NVIDIA libraries directly (NVML, CUDA runtime, cuBLAS, cuBLASLt) and shows what is really happening with GPU memory: what the card is, who holds VRAM, how big a model is, and how fast weights move over PCIe.
+VRAM Suite talks to NVIDIA libraries directly (NVML, CUDA driver and runtime, cuBLAS, cuBLASLt) and shows what is really happening with GPU memory: what the card is, who holds VRAM, how big a model is, and how fast weights move over PCIe.
 
 ## Quick start
 
@@ -110,6 +110,7 @@ flowchart LR
     subgraph BACKENDS["backends (ctypes)"]
         direction TB
         nvml["nvml"]
+        driver["cuda driver"]
         cuda["cuda runtime"]
         blas["cublas / cublaslt"]
         win["windows_gpu"]
@@ -117,6 +118,7 @@ flowchart LR
 
     CORE --> BACKENDS
     nvml --> NV["nvml.dll / libnvidia-ml.so"]
+    driver --> DRV["nvcuda.dll / libcuda.so"]
     cuda --> RT["cudart"]
     blas --> BL["cuBLAS / cuBLASLt"]
     win --> OS["pdh / gdi32 / ntdll"]
@@ -130,7 +132,7 @@ vramsuite/
     doctor.py          Structured diagnostics API (+ native compute checks)
     fingerprint.py     Runtime, NVML, CUDA runtime, cuBLAS, torch-metadata fingerprint
     vramcard.py        .vramcard creation, GPU matching (NVML <-> CUDA by PCI)
-    probe.py           Bounded allocation probe (cudaMalloc)
+    probe.py           Bounded allocation probe (cuMemAlloc)
     risk.py            Basic OOM risk estimation
     model_inspect.py   .safetensors header reader (exact weight sizes)
     processes.py       Per-process VRAM usage and peaks
@@ -144,6 +146,7 @@ vramsuite/
     native_loader.py   DLL/.so discovery (CUDA Toolkit first, venv fallback)
     nvml.py            NVML: memory, device details, PCIe, clocks, power, processes
     cuda.py            CUDA runtime: memory, device attributes, malloc/memcpy, pinned memory
+    cuda_driver.py     CUDA driver API: probe and transfers with only the NVIDIA driver installed
     cublas.py          cuBLAS handle and SGEMM
     cublaslt/          cuBLASLt descriptors, heuristics, matmul
     windows_gpu.py     Windows PDH GPU counters, LUID -> PCI, process info
@@ -179,6 +182,7 @@ print(run_transfer_benchmark()["results"])
 ## Roadmap
 
 - [x] Native CUDA runtime, cuBLAS and cuBLASLt backends (no PyTorch)
+- [x] CUDA driver API backend: probe and transfers without the CUDA Toolkit
 - [x] Device profile in `.vramcard`, NVML <-> CUDA matching by PCI address
 - [x] Compute check layer (cuBLAS / cuBLASLt FP32, FP8)
 - [x] Model file inspection from `.safetensors` headers
@@ -196,7 +200,7 @@ Out of scope (separate kernel project): custom attention kernels, FP4 block-scal
 |---|---|
 | GPU | NVIDIA GeForce RTX 5080 (Blackwell, sm_120, 16 GB) |
 | Driver | 617.14, CUDA driver 13.4 |
-| CUDA Toolkit | 13.0 |
+| CUDA Toolkit | 13.0 (only needed for `doctor --compute-check` and cudart device attributes) |
 | OS | Windows 11 (WDDM), WSL2 |
 | Python | 3.12 via `uv` |
 

@@ -36,7 +36,7 @@ Every command supports `--json` for machine-readable output.
 
 These rules apply to every page:
 
-- Everything is native: NVML, CUDA runtime, cuBLAS and cuBLASLt are called through `ctypes`.
+- Everything is native: NVML, the CUDA driver and runtime, cuBLAS and cuBLASLt are called through `ctypes`.
 - PyTorch and Triton are never imported. PyTorch is only detected from package metadata.
 - Nothing heavy runs by default. Probes and compute checks need an explicit flag.
 - Every resource is released, even when a step fails.
