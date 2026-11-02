@@ -27,3 +27,5 @@ doctor_report.json
 workflow_profile.json
 *.vramcard.json
 .vramsuite/
+# Workflow profiles from `vramsuite profile`
+profiles/

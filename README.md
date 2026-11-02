@@ -43,6 +43,7 @@ uv run vramsuite doctor --compute-check
 | `vramsuite transfer` | Real RAM <-> VRAM bandwidth over PCIe | [Transfer benchmark](docs/transfer.md) |
 | `vramsuite estimate <models>` | Will models fit in VRAM, and what offloading the rest costs per step | [Memory estimate](docs/estimate.md) |
 | `vramsuite estimate --workflow <file.json>` | The same for a ComfyUI workflow: finds the models it loads | [Memory estimate](docs/estimate.md#comfyui-workflows) |
+| `vramsuite profile` | Records peak VRAM and run time of the next ComfyUI prompts; `estimate` uses them | [Workflow profiles](docs/profiles.md) |
 | `vramsuite analyze-workflow <file or folder>` | Models, resolution / frames / steps, config hash and risky patterns of ComfyUI workflows | [Workflow analysis](docs/workflow-analysis.md) |
 | `vramsuite compare a b` | Diff of two `.vramcard` profiles | [`.vramcard` format](docs/vramcard.md) |
 | `vramsuite validate card.json` | Structure and sanity check of a `.vramcard` (exit code 1 if invalid) | [`.vramcard` format](docs/vramcard.md#validating-a-card) |
@@ -140,6 +141,7 @@ vramsuite/
     transfer.py        Host <-> device bandwidth benchmark
     estimate.py        Workflow memory estimate and offloading cost
     workflow.py        ComfyUI workflow JSON -> models, settings, hashes, warnings -> estimate
+    profile.py         Passive ComfyUI run capture: peak VRAM + run time per config hash
     compare.py         .vramcard comparison
     reports.py         Rich terminal report rendering
     runtime.py         OS/Python/WSL/container detection
@@ -193,6 +195,7 @@ print(run_transfer_benchmark()["results"])
 - [x] ComfyUI workflow analysis
 - [x] Profile validation and schema checks
 - [x] Offline workflow analysis: settings, graph / config hashes, risky patterns (v0.2)
+- [x] Workflow profiles: real peak VRAM and run time from ComfyUI, used by estimate (v0.3)
 
 Out of scope (separate kernel project): custom attention kernels, FP4 block-scaled GEMM, kernel autotuning.
 
@@ -210,7 +213,7 @@ Other NVIDIA GPUs should work; FP8 compute checks need Ada (sm_89) or newer.
 
 ## Status
 
-Alpha (v0.2). The CLI, `.vramcard` format and Python API can still change between versions.
+Alpha (v0.3). The CLI, `.vramcard` format and Python API can still change between versions.
 
 ## License
 

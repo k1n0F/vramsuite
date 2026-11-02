@@ -200,13 +200,36 @@ def _warnings(nodes: list[dict[str, Any]], models: list[dict[str, Any]], latents
     return warnings
 
 
+def _canonical(value: Any) -> Any:
+    # The UI format saves cfg 1, the API format 1.0: the same setting.
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {key: _canonical(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_canonical(item) for item in value]
+    return value
+
+
+def config_hash(models: list[dict[str, Any]], settings: dict[str, list[dict[str, Any]]]) -> str:
+    """Models + settings, independent of node order and of UI vs API format."""
+    entries = settings["latents"] + settings["samplers"]
+    return _short_hash([
+        sorted(model["name"] for model in models),
+        sorted(json.dumps(_canonical(entry), sort_keys=True) for entry in entries),
+    ])
+
+
 def analyze_workflow(workflow_path: str | Path, models_dir: str | Path | None = None) -> dict[str, Any]:
     """Offline analysis of a workflow file: models, settings, hashes, warnings. Nothing runs on the GPU."""
     path = Path(workflow_path)
     workflow = json.loads(path.read_text(encoding="utf-8"))
-    nodes = workflow_nodes(workflow)
-    models_dir = Path(models_dir) if models_dir else find_models_dir(path)
+    return analyze_workflow_data(workflow, path.name, Path(models_dir) if models_dir else find_models_dir(path))
 
+
+def analyze_workflow_data(workflow: dict[str, Any], name: str, models_dir: Path | None = None) -> dict[str, Any]:
+    """analyze_workflow for an already loaded workflow, e.g. a prompt from ComfyUI's /history."""
+    nodes = workflow_nodes(workflow)
     models = find_models(nodes)
     for model in models:
         resolved = resolve_model(model["name"], models_dir) if models_dir else None
@@ -216,8 +239,13 @@ def analyze_workflow(workflow_path: str | Path, models_dir: str | Path | None = 
 
     settings = find_settings(nodes)
     found = [model for model in models if model["path"]]
+    # Without a models folder there is nothing to look models up in.
+    warnings = [
+        warning for warning in _warnings(nodes, models, settings["latents"])
+        if models_dir or warning["code"] != "model_missing"
+    ]
     return {
-        "name": path.name,
+        "name": name,
         "format": "ui" if "nodes" in workflow else "api",
         "models_dir": str(models_dir) if models_dir else None,
         "node_count": len(nodes),
@@ -225,20 +253,21 @@ def analyze_workflow(workflow_path: str | Path, models_dir: str | Path | None = 
         # ponytail: node-type multiset, not wiring; two graphs with the same nodes wired differently collide.
         "graph_hash": _short_hash(sorted(node["type"] for node in nodes)),
         # Same config_hash = same models and settings: what a VRAM profile is valid for.
-        "config_hash": _short_hash([sorted(model["name"] for model in models), settings]),
+        "config_hash": config_hash(models, settings),
         "models": models,
         "weights_mb": {
             "largest": max((model["weights_mb"] for model in found), default=0.0),
             "all": round(float(sum(model["weights_mb"] for model in found)), 1),
         },
         **settings,
-        "warnings": _warnings(nodes, models, settings["latents"]),
+        "warnings": warnings,
     }
 
 
 def estimate_comfy_workflow(
         workflow_path: str | Path,
         models_dir: str | Path | None = None,
+        profiles_dir: str | Path | None = None,
         **estimate_kwargs: Any,
 ) -> dict[str, Any]:
     """
@@ -247,7 +276,12 @@ def estimate_comfy_workflow(
     ComfyUI loads models stage by stage (text encoder, then the diffusion
     model, then the VAE) and unloads what does not fit, so the plan is made
     for the largest model. The sum of all models is reported as well.
+
+    With profiles_dir, a recorded profile of the same config_hash supplies the
+    observed peak unless activations or a peak were given explicitly.
     """
+    from vramsuite.core.profile import load_profile, summarize_profile
+
     analysis = analyze_workflow(workflow_path, models_dir)
     if analysis["models_dir"] is None:
         raise RuntimeError(f"Cannot find the ComfyUI models folder above {analysis['name']}; pass --models-dir")
@@ -258,13 +292,27 @@ def estimate_comfy_workflow(
             f"None of the {len(analysis['models'])} models of {analysis['name']} were found in {analysis['models_dir']}"
         )
 
+    profile = None
+    if profiles_dir is not None:
+        recorded = load_profile(profiles_dir, analysis["config_hash"])
+        profile = summarize_profile(recorded) if recorded else None
+    use_profile = bool(
+        profile and estimate_kwargs.get("observed_peak_mb") is None and not estimate_kwargs.get("activations_mb")
+    )
+    if use_profile:
+        estimate_kwargs["observed_peak_mb"] = profile["peak_mb"]
+
     info = estimate_workflow([model["path"] for model in found], largest_only=True, **estimate_kwargs)
+    if use_profile:
+        info["activations_source"] = "profile"
     for model, node in zip(info["models"], found):
         model["node_type"] = node["node_type"]
     info["workflow"] = {
         "name": analysis["name"],
         "models_dir": analysis["models_dir"],
         "missing": [model["name"] for model in analysis["models"] if not model["path"]],
+        "config_hash": analysis["config_hash"],
+        "profile": profile,
     }
     return info
 

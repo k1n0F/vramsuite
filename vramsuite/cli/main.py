@@ -22,6 +22,7 @@ from vramsuite.core.transfer import run_transfer_benchmark
 from vramsuite.core.estimate import DEFAULT_RESERVE_MB, estimate_workflow
 from vramsuite.core.workflow import analyze_folder, analyze_workflow, estimate_comfy_workflow
 from vramsuite.core.validate import validate_vramcard
+from vramsuite.core.profile import DEFAULT_COMFY_URL, DEFAULT_PROFILES_DIR, capture_run, save_run
 
 
 
@@ -42,6 +43,7 @@ from vramsuite.core.reports import (
     print_transfer_table,
     print_estimate_table,
     print_folder_analysis,
+    print_profile_run,
     print_workflow_analysis,
     print_validation,
     print_vramcard_compare_table,
@@ -391,6 +393,11 @@ def estimate(
         "--models-dir",
         help="ComfyUI models folder. Default: found above the workflow file.",
     ),
+    profiles_dir: Path = typer.Option(
+        DEFAULT_PROFILES_DIR,
+        "--profiles-dir",
+        help="Folder of profiles from `vramsuite profile`; a matching one supplies the peak.",
+    ),
     activations_mb: float = typer.Option(
         0,
         "--activations-mb",
@@ -442,7 +449,7 @@ def estimate(
     )
     try:
         if workflow is not None:
-            info = estimate_comfy_workflow(workflow, models_dir=models_dir, **options)
+            info = estimate_comfy_workflow(workflow, models_dir=models_dir, profiles_dir=profiles_dir, **options)
         else:
             info = estimate_workflow(models, **options)
     except (ModelInspectError, OSError, ValueError, RuntimeError) as exc:
@@ -454,6 +461,67 @@ def estimate(
         return
 
     print_estimate_table(console, info)
+
+
+@app.command()
+def profile(
+    comfy_url: str = typer.Option(
+        DEFAULT_COMFY_URL,
+        "--comfy-url",
+        help="ComfyUI address (the one you open in the browser).",
+    ),
+    runs: int = typer.Option(
+        1,
+        "--runs",
+        help="How many prompts to record, one after another.",
+    ),
+    profiles_dir: Path = typer.Option(
+        DEFAULT_PROFILES_DIR,
+        "--profiles-dir",
+        help="Where profiles are saved, one JSON file per config hash.",
+    ),
+    wait: float = typer.Option(
+        3600,
+        "--wait",
+        help="Seconds to wait for each prompt to start.",
+    ),
+    free: bool = typer.Option(
+        True,
+        "--free/--no-free",
+        help="Unload ComfyUI's models before the first run, so the peak belongs to this workflow.",
+    ),
+    gpu: int = typer.Option(
+        0,
+        "--gpu",
+        help="GPU index.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print each recorded run as JSON.",
+    ),
+) -> None:
+    """Record peak VRAM and run time of the next ComfyUI prompts (you press Queue)."""
+    for number in range(1, runs + 1):
+        try:
+            with console.status(f"Run {number}/{runs}: connecting to ComfyUI...") as status:
+                captured = capture_run(
+                    comfy_url,
+                    device_index=gpu,
+                    wait_seconds=wait,
+                    # Only the first run starts cold; later runs show the warm time.
+                    free_first=free and number == 1,
+                    on_status=lambda message: status.update(f"Run {number}/{runs}: {message}"),
+                )
+        except (OSError, TimeoutError, RuntimeError, ValueError) as exc:
+            console.print(f"[red]Cannot profile:[/red] {exc}")
+            raise typer.Exit(code=1) from exc
+
+        path = save_run(profiles_dir, captured)
+        if json_output:
+            console.print_json(json.dumps(captured, indent=2, ensure_ascii=False))
+        else:
+            print_profile_run(console, captured, path)
 
 
 if __name__ == "__main__":

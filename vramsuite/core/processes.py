@@ -150,11 +150,13 @@ def watch_gpu_processes(
         device_index: int = 0,
         min_mb: float = 1.0,
         on_sample: Callable[[int], None] | None = None,
+        until: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """
     Sample repeatedly and keep each process's peak dedicated memory.
 
-    Ctrl+C ends the watch early and still returns the peaks seen so far.
+    Stops after `seconds`, or earlier when `until()` returns True. Ctrl+C ends
+    the watch early and still returns the peaks seen so far.
     """
     peaks: dict[int, int] = {}
     last: dict[str, Any] | None = None
@@ -170,7 +172,7 @@ def watch_gpu_processes(
 
             if on_sample is not None:
                 on_sample(samples)
-            if time.monotonic() >= deadline:
+            if time.monotonic() >= deadline or (until is not None and until()):
                 break
             time.sleep(interval)
 

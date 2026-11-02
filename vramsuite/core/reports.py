@@ -418,6 +418,28 @@ def print_folder_analysis(console: Console, info: dict[str, Any]) -> None:
         console.print(f"[dim]Skipped {len(info['skipped'])} JSON files that are not workflows.[/dim]")
 
 
+def print_profile_run(console: Console, captured: dict[str, Any], path: Any) -> None:
+    """Print one recorded ComfyUI run."""
+    analysis = captured["analysis"]
+    run = captured["run"]
+    table = Table(title=f"Prompt {run['prompt_id'][:8]}: {run['status']}")
+    table.add_column("Field", style="bold")
+    table.add_column("Value")
+    table.add_row("Config hash", analysis["config_hash"])
+    table.add_row("Models", ", ".join(model["name"] for model in analysis["models"]))
+    for latent in analysis["latents"]:
+        table.add_row("Size", f"{_latent_size(latent)} ({latent['node_type']})")
+    table.add_row("Run seconds", str(run["run_seconds"]))
+    table.add_row("Cached nodes", str(run["cached_nodes"]))
+    table.add_row("Process", f"{run['process'] or 'unknown name'} (pid {run['pid']})")
+    table.add_row("Started cold", "yes (models unloaded first)" if run["freed_before"] else "no")
+    table.add_row("VRAM at start MB", str(run["start_mb"]))
+    table.add_row("Peak VRAM MB", str(run["peak_mb"]))
+    table.add_row("GPU", f"{run['gpu']} ({run['gpu_total_mb']} MB)")
+    console.print(table)
+    console.print(f"[green]Saved:[/green] {path}")
+
+
 def print_estimate_table(console: Console, info: dict[str, Any]) -> None:
     """Print the VRAM plan for a set of models and its offloading cost."""
     workflow = info.get("workflow")
@@ -448,9 +470,21 @@ def print_estimate_table(console: Console, info: dict[str, Any]) -> None:
     console.print(table)
 
     if info["activations_source"] == "not_set":
+        hint = "record a run with `vramsuite profile`, " if workflow else ""
         console.print(
-            "[yellow]Activations not set:[/yellow] only weights are counted. Pass --activations-mb, "
-            "or --observed-peak-mb with the peak from `vramsuite processes --watch`."
+            f"[yellow]Activations not set:[/yellow] only weights are counted. To include them, {hint}"
+            "pass --activations-mb, or --observed-peak-mb with the peak from `vramsuite processes --watch`."
+        )
+
+    profile = (workflow or {}).get("profile")
+    if profile:
+        timing = (
+            f", run took {profile['fastest_seconds']}-{profile['slowest_seconds']} s"
+            if profile["fastest_seconds"] is not None else ""
+        )
+        console.print(
+            f"[green]Profile {profile['config_hash']}:[/green] {profile['runs']} recorded runs, "
+            f"peak {profile['peak_mb']} MB{timing}"
         )
 
     if workflow:

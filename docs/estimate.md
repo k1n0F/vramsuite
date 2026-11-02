@@ -94,7 +94,9 @@ The calibrated activations can then be reused: change the model (FP8 instead of 
 
 If the observed run was already offloading, its peak is capped by the card and underestimates activations. Calibrate on a run that fits.
 
-Without either flag only weights are counted, and the report warns about it.
+**From a profile** — for ComfyUI workflows, the easiest way. Record runs with `vramsuite profile` ([Workflow profiles](profiles.md)); `estimate --workflow` finds the profile with the same config hash in `./profiles` (or `--profiles-dir`) and uses its peak. `activations_source` is then `profile`.
+
+Without any of these only weights are counted, and the report warns about it.
 
 ## How the estimate works
 
@@ -186,7 +188,7 @@ weights_mb           weights the plan is made for
 weights_basis        all (sum of models) | largest (workflows)
 all_weights_mb       sum of all models
 activations_mb
-activations_source   given | observed_peak | not_set
+activations_source   given | observed_peak | profile | not_set
 available_mb
 available_source     nvml_free | given
 reserve_mb
@@ -200,7 +202,7 @@ risk                 OOM risk object, same as doctor --estimate-mb
 offload              null unless status is offload:
   pinned_gb_s, pageable_gb_s, source (measured | given), error,
   offload_mb, seconds_per_step_pinned, seconds_per_step_pageable
-workflow             only with --workflow: name, models_dir, missing (file names)
+workflow             only with --workflow: name, models_dir, missing (file names), config_hash, profile (runs, peak_mb, fastest / slowest seconds) or null
 ```
 
 ## Python API
