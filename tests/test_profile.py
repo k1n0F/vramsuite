@@ -1,4 +1,4 @@
-from vramsuite.core.profile import load_profile, save_run, summarize_profile
+from vramsuite.core.profile import _comfy_process, load_profile, save_run, summarize_profile
 from vramsuite.core.workflow import analyze_workflow_data
 
 # The same workflow as the UI saves it and as ComfyUI runs it (API, from /history).
@@ -59,8 +59,6 @@ def test_save_and_summarize(tmp_path):
 
 
 def test_comfy_process_is_not_the_biggest_wddm_counter():
-    from vramsuite.core.profile import _comfy_process
-
     # Real Windows snapshot: a protected process and an overlay outweigh ComfyUI.
     processes = [
         {"pid": 2460, "name": None, "command_line": None},

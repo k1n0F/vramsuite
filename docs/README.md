@@ -10,7 +10,7 @@ The main [README](../README.md) is the overview. These pages go deeper: what eve
 - [Allocation probe and OOM risk](probe-and-risk.md) — `doctor --probe`, `--estimate-mb`, Windows vs WSL
 - [Model inspection](model-inspection.md) — `inspect`, exact weight sizes from `.safetensors` headers
 - [Process tracking](process-tracking.md) — `processes`, per-process VRAM observed from outside
-- [Workflow memory estimate](estimate.md) — `estimate`, will models or a ComfyUI workflow fit and what offloading costs
+- [Workflow memory estimate](estimate.md) — `estimate`, will models or a ComfyUI workflow fit, what offloading costs, and what to change
 - [Workflow analysis](workflow-analysis.md) — `analyze-workflow`, models, settings, hashes and risky patterns of ComfyUI workflows
 - [Workflow profiles](profiles.md) — `profile`, real peak VRAM and run time of ComfyUI runs, used by `estimate`
 - [Transfer benchmark](transfer.md) — `transfer`, real RAM <-> VRAM bandwidth over PCIe

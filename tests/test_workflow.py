@@ -1,4 +1,4 @@
-from vramsuite.core.workflow import find_models, find_settings, workflow_nodes
+from vramsuite.core.workflow import _warnings, find_models, find_settings, workflow_nodes
 
 UI_WORKFLOW = {
     "nodes": [
@@ -61,8 +61,6 @@ def test_api_format():
 
 
 def test_warnings():
-    from vramsuite.core.workflow import _warnings
-
     nodes = [{"type": "VAEDecode", "widgets": {}, "values": []}]
     models = [
         {"name": "umt5_fp16.safetensors", "node_type": "CLIPLoader", "path": "x", "weights_mb": 10840.0, "dtypes": ["F16"]},

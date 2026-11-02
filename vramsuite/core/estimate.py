@@ -71,7 +71,8 @@ def _nvml_free_mb(device_index: int) -> float | None:
     return None
 
 
-def _measure_transfer(device_index: int) -> dict[str, Any]:
+def measure_transfer(device_index: int) -> dict[str, Any]:
+    """Best host -> device GB/s, pinned and pageable, from a short 128 MB benchmark."""
     try:
         bench = run_transfer_benchmark(device_index=device_index, size_mb=128, repeats=3)
     except Exception as exc:
@@ -149,7 +150,7 @@ def estimate_workflow(
             transfer = {"pinned_gb_s": transfer_gb_s, "pageable_gb_s": None, "source": "given", "error": None}
         else:
             # Measured only when needed: it allocates 2 x 128 MB of VRAM.
-            transfer = _measure_transfer(device_index)
+            transfer = measure_transfer(device_index)
 
         offload = {
             **transfer,

@@ -20,7 +20,8 @@ from vramsuite.core.model_inspect import ModelInspectError, inspect_model
 from vramsuite.core.processes import snapshot_gpu_processes, watch_gpu_processes
 from vramsuite.core.transfer import run_transfer_benchmark
 from vramsuite.core.estimate import DEFAULT_RESERVE_MB, estimate_workflow
-from vramsuite.core.workflow import analyze_folder, analyze_workflow, estimate_comfy_workflow
+from vramsuite.core.comfy import estimate_comfy_workflow
+from vramsuite.core.workflow import analyze_folder, analyze_workflow
 from vramsuite.core.validate import validate_vramcard
 from vramsuite.core.profile import DEFAULT_COMFY_URL, DEFAULT_PROFILES_DIR, capture_run, save_run
 

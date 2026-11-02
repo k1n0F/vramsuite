@@ -1,6 +1,6 @@
 """
 ComfyUI workflow analysis: which model files a workflow loads, its generation
-settings, risky patterns, and whether it fits.
+settings and risky patterns. Whether it fits is decided in core/comfy.py.
 
 Both formats ComfyUI saves are read:
 - UI format (workflows folder, "Save"): {"nodes": [{"id", "type", "mode", "inputs", "widgets_values"}], "links": [...], "definitions": {"subgraphs": [...]}}
@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from vramsuite.core.estimate import estimate_workflow, model_weights
+from vramsuite.core.estimate import model_weights
 
 MODEL_SUFFIXES = (".safetensors", ".sft", ".gguf", ".pth", ".pt", ".ckpt", ".bin")
 # LiteGraph node modes: 2 = muted, 4 = bypassed. Such nodes never run.
@@ -31,6 +31,9 @@ SEED_CONTROLS = {"fixed", "increment", "decrement", "randomize"}
 
 LATENT_KEYS = ("width", "height", "length", "num_frames", "batch_size")
 SAMPLER_KEYS = ("steps", "cfg", "sampler_name", "scheduler", "denoise")
+# Which of the steps a sampler runs (WAN 2.2 splits them between two models).
+# Not part of config_hash: they change the time, not the memory.
+STEP_RANGE_KEYS = ("start_at_step", "end_at_step", "start_step", "end_step")
 TEXT_ENCODER_NODE = re.compile(r"clip|text.?encoder|t5", re.IGNORECASE)
 LATENT_NODE = re.compile(r"latent|video", re.IGNORECASE)
 
@@ -136,8 +139,23 @@ def find_settings(nodes: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]
         if "width" in widgets and "height" in widgets and LATENT_NODE.search(node["type"]):
             latents.append({"node_type": node["type"], **{key: widgets[key] for key in LATENT_KEYS if key in widgets}})
         if "steps" in widgets:
-            samplers.append({"node_type": node["type"], **{key: widgets[key] for key in SAMPLER_KEYS if key in widgets}})
+            keys = SAMPLER_KEYS + STEP_RANGE_KEYS
+            samplers.append({"node_type": node["type"], **{key: widgets[key] for key in keys if key in widgets}})
     return {"latents": latents, "samplers": samplers}
+
+
+def steps_run(sampler: dict[str, Any]) -> int | None:
+    """Steps a sampler actually runs: steps, cut to its start/end range."""
+    steps = sampler.get("steps")
+    if not isinstance(steps, int):
+        return None
+    start = sampler.get("start_at_step", sampler.get("start_step", 0))
+    end = sampler.get("end_at_step", sampler.get("end_step", steps))
+    if not isinstance(start, int) or not isinstance(end, int):
+        return steps
+    # -1 (WanVideoSampler) and 10000 (KSamplerAdvanced) both mean "to the last step".
+    end = steps if end < 0 else min(end, steps)
+    return max(end - start, 0)
 
 
 def _frames(latent: dict[str, Any]) -> Any:
@@ -162,7 +180,8 @@ def resolve_model(name: str, models_dir: Path) -> Path | None:
     for folder in models_dir.iterdir():
         if (folder / relative).is_file():
             return folder / relative
-    # ponytail: no extra_model_paths.yaml support, the recursive search covers models moved inside models_dir.
+    # extra_model_paths.yaml is not read; the recursive search covers models
+    # moved to subfolders of models_dir.
     return next((path for path in models_dir.rglob(relative.name) if path.is_file()), None)
 
 
@@ -213,7 +232,9 @@ def _canonical(value: Any) -> Any:
 
 def config_hash(models: list[dict[str, Any]], settings: dict[str, list[dict[str, Any]]]) -> str:
     """Models + settings, independent of node order and of UI vs API format."""
-    entries = settings["latents"] + settings["samplers"]
+    entries = settings["latents"] + [
+        {key: value for key, value in sampler.items() if key not in STEP_RANGE_KEYS} for sampler in settings["samplers"]
+    ]
     return _short_hash([
         sorted(model["name"] for model in models),
         sorted(json.dumps(_canonical(entry), sort_keys=True) for entry in entries),
@@ -250,7 +271,8 @@ def analyze_workflow_data(workflow: dict[str, Any], name: str, models_dir: Path 
         "models_dir": str(models_dir) if models_dir else None,
         "node_count": len(nodes),
         # Same graph_hash = same workflow (node types, values ignored).
-        # ponytail: node-type multiset, not wiring; two graphs with the same nodes wired differently collide.
+        # Built from node types, not wiring: two graphs with the same nodes
+        # wired differently get the same graph_hash.
         "graph_hash": _short_hash(sorted(node["type"] for node in nodes)),
         # Same config_hash = same models and settings: what a VRAM profile is valid for.
         "config_hash": config_hash(models, settings),
@@ -262,59 +284,6 @@ def analyze_workflow_data(workflow: dict[str, Any], name: str, models_dir: Path 
         **settings,
         "warnings": warnings,
     }
-
-
-def estimate_comfy_workflow(
-        workflow_path: str | Path,
-        models_dir: str | Path | None = None,
-        profiles_dir: str | Path | None = None,
-        **estimate_kwargs: Any,
-) -> dict[str, Any]:
-    """
-    Estimate VRAM for a ComfyUI workflow file.
-
-    ComfyUI loads models stage by stage (text encoder, then the diffusion
-    model, then the VAE) and unloads what does not fit, so the plan is made
-    for the largest model. The sum of all models is reported as well.
-
-    With profiles_dir, a recorded profile of the same config_hash supplies the
-    observed peak unless activations or a peak were given explicitly.
-    """
-    from vramsuite.core.profile import load_profile, summarize_profile
-
-    analysis = analyze_workflow(workflow_path, models_dir)
-    if analysis["models_dir"] is None:
-        raise RuntimeError(f"Cannot find the ComfyUI models folder above {analysis['name']}; pass --models-dir")
-
-    found = [model for model in analysis["models"] if model["path"]]
-    if not found:
-        raise RuntimeError(
-            f"None of the {len(analysis['models'])} models of {analysis['name']} were found in {analysis['models_dir']}"
-        )
-
-    profile = None
-    if profiles_dir is not None:
-        recorded = load_profile(profiles_dir, analysis["config_hash"])
-        profile = summarize_profile(recorded) if recorded else None
-    use_profile = bool(
-        profile and estimate_kwargs.get("observed_peak_mb") is None and not estimate_kwargs.get("activations_mb")
-    )
-    if use_profile:
-        estimate_kwargs["observed_peak_mb"] = profile["peak_mb"]
-
-    info = estimate_workflow([model["path"] for model in found], largest_only=True, **estimate_kwargs)
-    if use_profile:
-        info["activations_source"] = "profile"
-    for model, node in zip(info["models"], found):
-        model["node_type"] = node["node_type"]
-    info["workflow"] = {
-        "name": analysis["name"],
-        "models_dir": analysis["models_dir"],
-        "missing": [model["name"] for model in analysis["models"] if not model["path"]],
-        "config_hash": analysis["config_hash"],
-        "profile": profile,
-    }
-    return info
 
 
 def analyze_folder(folder: str | Path, models_dir: str | Path | None = None) -> dict[str, Any]:

@@ -499,6 +499,12 @@ def print_estimate_table(console: Console, info: dict[str, Any]) -> None:
                 "ComfyUI unloads and reloads models between stages on every run.[/dim]"
             )
 
+    advice = info.get("advice")
+    if advice:
+        for suggestion in advice["suggestions"]:
+            console.print(f"[cyan]Suggestion:[/cyan] {suggestion['message']}")
+        console.print(f"[dim]Confidence: {advice['confidence']} (activations: {info['activations_source']}).[/dim]")
+
     offload = info["offload"]
     if offload is None:
         return

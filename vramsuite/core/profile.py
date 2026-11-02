@@ -63,7 +63,8 @@ def _comfy_process(processes: list[dict[str, Any]]) -> dict[str, Any] | None:
     """
     # Not this process: its own command line may contain --comfy-url.
     processes = [process for process in processes if process["pid"] != os.getpid()]
-    # ponytail: name heuristics; match the process listening on ComfyUI's port if they ever pick wrong.
+    # Name heuristics. If they ever pick the wrong process, match the one
+    # listening on ComfyUI's port instead.
     for matches in (
         lambda process: "comfy" in (process.get("command_line") or "").lower(),
         lambda process: (process.get("name") or "").lower().startswith("python"),

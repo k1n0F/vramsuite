@@ -134,6 +134,44 @@ To skip the measurement, pass a known bandwidth:
 uv run vramsuite estimate model.safetensors --activations-mb 3000 --transfer-gb-s 28.5
 ```
 
+## Suggestions
+
+For a ComfyUI workflow (`--workflow`), `estimate` ends with suggestions. Each one is computed from measured or read values. Nothing is changed in the workflow; you decide.
+
+```text
+Suggestion: Use umt5_xxl_fp8_e4m3fn_scaled.safetensors (6423.8 MB) instead of umt5_xxl_fp16.safetensors: -4416.0 MB, lowers the planned peak.
+Suggestion: To fit without offloading: about 656x1152 at 101 frames or 73 frames at 768x1344 (now 768x1344, 101 frames).
+Suggestion: Offloading 1560.8 MB over 6 steps costs at least +0.3 s with pinned memory, +0.4 s with pageable memory per run.
+Suggestion: All models together need 34010 MB: ComfyUI reloads about 18730.7 MB from RAM on every run (at least 0.9 s of PCIe transfer at 22.9 GB/s).
+Confidence: medium (activations: given).
+```
+
+| Suggestion | When | Where the numbers come from |
+|---|---|---|
+| `fp8_text_encoder` | a text encoder over 2 GB in F16 / BF16 / F32 | an FP8 file of the same model in the models folder (exact size from its header), otherwise about half the size |
+| `reduce_size` / `max_size` | activations are known and the latent size is a number, not linked | room left after the weights / activations |
+| `offload_cost` | the status is `fits with offloading` | seconds per step × steps the samplers actually run |
+| `reload_between_stages` | all models together exceed the budget | MB that cannot stay loaded / measured PCIe bandwidth; RAM is checked too |
+| `vae_decode_untiled`, `vae_tiling_off` | a video is decoded without tiling | from [workflow analysis](workflow-analysis.md) |
+
+**How the numbers are calculated:**
+
+- **FP8 variant.** Two files are the same model when their names match after dropping precision tokens (`fp16`, `bf16`, `fp8`, `e4m3fn`, `scaled`, ...). Example: `umt5_xxl_fp16` and `umt5_xxl_fp8_e4m3fn_scaled` are both `umt5_xxl`.
+- **Size.** Activations are assumed to grow linearly with pixels × frames. This holds for flash and sage attention, which do not store the full attention matrix. The suggested width and height keep the aspect ratio and are rounded down to a multiple of 16. Frame counts keep the `n*k+1` form video models need:
+  - `8n+1` when the current count allows it (valid for both WAN and LTX)
+  - otherwise `4n+1`
+- **Steps.** A sampler's range is respected. WAN 2.2 with two `KSamplerAdvanced` nodes of 6 steps split at step 3 runs 6 steps, not 12.
+- **Reload and offloading costs** count PCIe transfer only, so they are lower bounds. Loading a model also casts and prepares its weights.
+- **RAM.** If all models together exceed 75% of the RAM, the reload suggestion warns that they are likely read from disk.
+
+**Confidence** follows where the activations came from:
+
+```text
+high     profile or observed peak
+medium   given with --activations-mb
+low      not set: only weights are counted, size suggestions are skipped
+```
+
 ## Example output
 
 WAN 2.2 14B FP8 with ComfyUI already holding most of the card (5 GB free):
@@ -202,6 +240,7 @@ risk                 OOM risk object, same as doctor --estimate-mb
 offload              null unless status is offload:
   pinned_gb_s, pageable_gb_s, source (measured | given), error,
   offload_mb, seconds_per_step_pinned, seconds_per_step_pageable
+advice               only with --workflow: confidence (high | medium | low), suggestions (list: code, message, and saves_mb / scale / steps / reload_mb where it applies)
 workflow             only with --workflow: name, models_dir, missing (file names), config_hash, profile (runs, peak_mb, fastest / slowest seconds) or null
 ```
 
@@ -218,7 +257,7 @@ info = estimate_workflow(
 
 print(info["status"], info["headroom_mb"])
 
-from vramsuite.core.workflow import estimate_comfy_workflow
+from vramsuite.core.comfy import estimate_comfy_workflow
 
 info = estimate_comfy_workflow("workflow.json", observed_peak_mb=14745, available_mb=16303)
 print(info["status"], info["workflow"]["missing"])
