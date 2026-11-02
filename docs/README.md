@@ -7,6 +7,7 @@ The main [README](../README.md) is the overview. These pages go deeper: what eve
 ## Pages
 
 - [Device profile](device-profile.md) — `doctor`, the `device` section of `.vramcard`, native compute check
+- [Allocation probe and OOM risk](probe-and-risk.md) — `doctor --probe`, `--estimate-mb`, Windows vs WSL
 - [Model inspection](model-inspection.md) — `inspect`, exact weight sizes from `.safetensors` headers
 - [Process tracking](process-tracking.md) — `processes`, per-process VRAM observed from outside
 - [Transfer benchmark](transfer.md) — `transfer`, real RAM <-> VRAM bandwidth over PCIe

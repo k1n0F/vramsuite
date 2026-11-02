@@ -138,7 +138,7 @@ The `torch_*` fields come from package metadata only. PyTorch is never imported,
 
 ### `probe`, `risk_estimate`
 
-See the main [README](../README.md#bounded-cuda-allocation-probe) for the bounded probe and OOM risk estimation.
+See [Allocation probe and OOM risk](probe-and-risk.md).
 
 ### `compute_check`
 

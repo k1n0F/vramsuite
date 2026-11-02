@@ -1,525 +1,121 @@
-# VRAM Suite
+<p align="center">
+  <img src="assets/banner-wide.png" alt="VRAM Suite" width="720">
+</p>
 
-VRAM Suite is a Python framework for GPU memory diagnostics in local AI inference workflows.
+<p align="center">
+  <b>Native GPU memory diagnostics for local AI.</b><br>
+  Know whether your workflow fits in VRAM before it crashes with out-of-memory.
+</p>
 
-The project is focused on understanding, recording, and later predicting VRAM behavior before a workflow fails with an out-of-memory error.
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
+  <img src="https://img.shields.io/badge/status-pre--alpha-orange" alt="pre-alpha">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20WSL2-lightgrey" alt="Windows, Linux, WSL2">
+  <img src="https://img.shields.io/badge/CUDA-native%20ctypes-76B900?logo=nvidia&logoColor=white" alt="Native CUDA">
+  <img src="https://img.shields.io/badge/PyTorch-not%20required-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch not required">
+</p>
 
-Current status: **pre-alpha / v0.1-alpha foundation**
+---
 
-## What it does now
+VRAM Suite talks to NVIDIA libraries directly (NVML, CUDA runtime, cuBLAS, cuBLASLt) and shows what is really happening with GPU memory: what the card is, who holds VRAM, how big a model is, and how fast weights move over PCIe.
 
-VRAM Suite currently provides:
-
-- CLI diagnostics through `vramsuite doctor`
-- Public Python API through `import vramsuite`
-- Structured doctor API through `run_doctor()`
-- System/runtime fingerprint collection
-- PyTorch detection from package metadata (torch is never imported)
-- NVIDIA GPU memory detection through NVML using `ctypes`
-- Detailed native GPU profile: architecture, compute capability, SM count,
-  shared memory / register / L2 limits, PCIe link, clocks, power, temperature
-- NVML and CUDA devices matched by PCI address (safe on multi-GPU systems)
-- `.vramcard` JSON profile generation
-- Rich terminal reports
-- Optional bounded allocation probe through the native CUDA runtime (`cudaMalloc`)
-- Optional native compute check (`--compute-check`): cuBLAS SGEMM, cuBLASLt FP32 and FP8 GEMM
-- Probe safety clamping through configurable limits
-- Basic OOM risk estimation through `--estimate-mb`
-- OOM risk availability source reporting
-- Windows and WSL-friendly runtime detection
-- Model file inspection (`vramsuite inspect`): exact weight sizes from `.safetensors` headers
-- Per-process VRAM tracking (`vramsuite processes`), with peak tracking in `--watch` mode
-- Host <-> device transfer benchmark (`vramsuite transfer`): pinned / pageable bandwidth vs the PCIe link
-
-Detailed documentation for every feature is in [docs/](docs/README.md).
-
-The allocation probe is disabled by default and only runs when explicitly requested with `--probe`.
-
-The OOM risk estimator is also explicit. It only runs when `--estimate-mb` is provided.
-
-The current `.vramcard` includes:
-
-- OS and Python runtime information
-- WSL/container detection
-- PyTorch version and its CUDA build, if installed
-- NVML availability
-- Device profile (`device`): NVML details, CUDA device attributes, derived
-  theoretical memory bandwidth and shared memory per block
-- NVIDIA GPU name
-- Total/free/used driver VRAM
-- Optional bounded probe result
-- Optional OOM risk estimate
-- OOM risk availability source
-- Memory source information
-
-## Why
-
-Local AI workflows often fail with OOM errors only after the workflow has already started.
-
-VRAM Suite is being built to make GPU memory behavior more visible and predictable.
-
-The long-term goal is to help answer questions like:
-
-- How much VRAM is available right now?
-- What is consuming memory before inference starts?
-- How much memory is safely allocatable?
-- Is this workflow likely to fail with OOM?
-- Which part of the stack affects memory usage?
-- How much safety margin should be left before running a workflow?
-- Does the same GPU behave differently on Windows, WSL, or another runtime?
-- Which memory value is being used for risk estimation?
-
-## Installation
-
-This project currently uses `uv`.
+## Quick start
 
 ```bash
 uv sync
+uv run vramsuite doctor --compute-check
 ```
 
-Run the CLI:
+<p align="center">
+  <img src="assets/doctor.svg" alt="vramsuite doctor output" width="760">
+</p>
 
-```bash
-uv run vramsuite doctor
-```
+## Commands
 
-## CLI usage
+| Command | What it does | Docs |
+|---|---|---|
+| `vramsuite doctor` | GPU profile, driver memory, `.vramcard` file | [Device profile](docs/device-profile.md) |
+| `vramsuite doctor --compute-check` | cuBLAS / cuBLASLt FP32 and FP8 GEMM correctness | [Compute check](docs/device-profile.md#compute-check) |
+| `vramsuite doctor --probe --estimate-mb N` | Safe allocatable budget and OOM risk | [Probe and risk](docs/probe-and-risk.md) |
+| `vramsuite inspect <model>` | Exact weight sizes per dtype from `.safetensors` headers | [Model inspection](docs/model-inspection.md) |
+| `vramsuite processes [--watch S]` | VRAM per process, with peaks | [Process tracking](docs/process-tracking.md) |
+| `vramsuite transfer` | Real RAM <-> VRAM bandwidth over PCIe | [Transfer benchmark](docs/transfer.md) |
+| `vramsuite compare a b` | Diff of two `.vramcard` profiles | [`.vramcard` format](docs/vramcard.md) |
 
-Show diagnostics and save `system.vramcard.json`:
+Every command supports `--json`. Full documentation: [docs/](docs/README.md).
 
-```bash
-uv run vramsuite doctor
-```
+## Why native
 
-Run diagnostics without writing a `.vramcard` file:
+- **No PyTorch, no Triton.** A diagnostic tool should not load gigabytes of framework and its own CUDA libraries just to read how much memory is free. PyTorch is only detected from package metadata.
+- **No DLL conflicts.** Importing torch makes Windows bind cuBLAS to torch's copy of cuBLASLt by name. VRAM Suite never imports it, so its numbers are not affected by a second CUDA stack.
+- **Observes from outside.** ComfyUI, games and browsers are measured through OS and driver counters; nothing has to run inside them.
+- **Explicit and bounded.** Nothing heavy runs by default, every allocation is released, and a value that cannot be read is reported with a reason instead of disappearing.
 
-```bash
-uv run vramsuite doctor --no-write-card
-```
+More: [Native backends](docs/native-backends.md).
 
-Write the `.vramcard` to a custom path:
+## See it work
 
-```bash
-uv run vramsuite doctor --output my-system.vramcard.json
-```
+**Who holds VRAM right now** — `vramsuite processes`
 
-Print the generated `.vramcard` JSON to stdout:
+<p align="center">
+  <img src="assets/processes.svg" alt="vramsuite processes output" width="760">
+</p>
 
-```bash
-uv run vramsuite doctor --json
-```
+**How big a model really is** — `vramsuite inspect` on a WAN 2.2 14B NVFP4 checkpoint: FP8 and packed FP4 weights, read from the header in milliseconds
 
-Show additional diagnostic information:
+<p align="center">
+  <img src="assets/inspect.svg" alt="vramsuite inspect output" width="760">
+</p>
 
-```bash
-uv run vramsuite doctor --verbose
-```
+**What offloading costs** — `vramsuite transfer`
 
-Run the bounded CUDA allocation probe:
+<p align="center">
+  <img src="assets/transfer.svg" alt="vramsuite transfer output" width="760">
+</p>
 
-```bash
-uv run vramsuite doctor --probe
-```
+## Real numbers
 
-Run the probe with custom safety limits:
+Measured on an RTX 5080 in a slot that runs at PCIe Gen5 x8:
 
-```bash
-uv run vramsuite doctor --probe --probe-max-mb 8192 --probe-step-mb 256 --probe-free-floor-mb 2048
-```
+| | Bandwidth | Time per GB |
+|---|---:|---:|
+| VRAM (device to device) | ~800 GB/s | 1.2 ms |
+| PCIe, pinned memory | 28.5 GB/s | 35 ms |
+| PCIe, pageable memory | ~19 GB/s | ~52 ms |
 
-Run the probe with a maximum free-memory ratio:
-
-```bash
-uv run vramsuite doctor --probe --probe-max-mb 17000 --probe-max-free-ratio 0.90
-```
-
-Estimate OOM risk for a required VRAM amount:
-
-```bash
-uv run vramsuite doctor --estimate-mb 8000
-```
-
-Run the probe and estimate OOM risk against the probed safe budget:
-
-```bash
-uv run vramsuite doctor --probe --probe-max-mb 12288 --probe-step-mb 256 --probe-free-floor-mb 2048 --estimate-mb 8000
-```
-
-## Bounded CUDA allocation probe
-
-VRAM Suite includes an optional bounded CUDA allocation probe.
-
-The probe is designed to be conservative:
-
-- It does not run by default.
-- It requires explicit `--probe`.
-- It allocates through the native CUDA runtime (`cudaMalloc`); PyTorch is not needed.
-- It allocates memory in configurable steps.
-- It never attempts more than `--probe-max-mb`.
-- It keeps a configurable free VRAM floor through `--probe-free-floor-mb`.
-- It can clamp the requested probe size through `--probe-max-free-ratio`.
-- It releases allocated tensors before returning.
-- It is not a full VRAM exhaustion test.
-
-Example:
-
-```bash
-uv run vramsuite doctor --probe --probe-max-mb 8192 --probe-step-mb 256
-```
-
-Example result:
-
-```text
-Safe Probe
-Available             True
-Backend               cuda-runtime
-Attempted MB          8192
-Allocated MB          8192
-Safe Allocatable MB   6963
-Safety Margin MB      1228
-Error                 None
-```
-
-This confirms that the current process could allocate the configured amount within the probe limits.
-
-It does **not** mean the whole GPU was stress-tested, and it does **not** intentionally push the GPU to OOM.
-
-## Probe safety clamp
-
-The probe will clamp unsafe or unrealistic requests.
-
-For example, asking for more VRAM than is currently free does not force VRAM Suite to try that exact value.
-
-Example:
-
-```bash
-uv run vramsuite doctor --probe --probe-max-mb 17000
-```
-
-Possible result:
-
-```text
-Requested probe_max_mb=17000 MB exceeds current driver_free_mb=14052 MB.
-Probe will be clamped to available free VRAM safety bounds.
-Requested probe limit was clamped from 17000 MB to 11904 MB.
-```
-
-The final probe limit is selected from the strictest active safety bound:
-
-```text
-min(
-  probe_max_mb,
-  driver_free_mb - probe_free_floor_mb,
-  driver_free_mb * probe_max_free_ratio
-)
-```
-
-The result is then rounded down to the configured allocation step.
-
-## OOM risk estimation
-
-VRAM Suite includes a basic OOM risk estimator.
-
-It can estimate whether a requested VRAM amount is likely to fit inside the currently known memory budget.
-
-Example without probe:
-
-```bash
-uv run vramsuite doctor --estimate-mb 8000
-```
-
-In this mode, the risk estimator uses driver-level free VRAM from NVML.
-
-Example with probe:
-
-```bash
-uv run vramsuite doctor --probe --probe-max-mb 12288 --probe-step-mb 256 --estimate-mb 8000
-```
-
-In this mode, the risk estimator uses the safer probed budget.
-
-Example result:
-
-```text
-OOM Risk Estimate
-Available             True
-Required MB           8000
-Available MB          10444
-Availability Source   probe_safe_allocatable
-Remaining MB          2444
-Usage Ratio           76.60%
-Risk Level            medium
-Reason                Required memory is close to available memory. Based on confirmed safe probe budget.
-```
-
-Risk levels:
-
-- `low` — required memory is well below the available budget
-- `medium` — required memory is close to the available budget
-- `high` — required memory is very close to the available budget
-- `critical` — required memory exceeds the available budget
-- `unknown` — not enough information to estimate risk
-
-### Availability source
-
-The risk estimator reports where the available memory value came from.
-
-Current sources:
-
-- `driver_free_at_scan` — driver-level free VRAM from NVML at scan time
-- `probe_safe_allocatable` — confirmed safe allocatable budget from the bounded CUDA probe
-- `unknown` — no usable memory source was found
-
-This is important because these values answer different questions.
-
-`driver_free_at_scan` means:
-
-```text
-How much VRAM did the driver report as free when the scan ran?
-```
-
-`probe_safe_allocatable` means:
-
-```text
-How much memory did the current Python process confirm as safely allocatable within the configured probe limits?
-```
-
-A small default probe can produce a small safe budget, for example `870 MB` from a `1024 MB` probe. That does not mean the GPU only has 870 MB available. It means the current run only confirmed 870 MB as safe because the probe limit was small.
-
-## Windows and WSL behavior
-
-VRAM Suite is designed to record environment differences.
-
-Example Windows runtime:
-
-```text
-OS        Windows
-Python    3.12.9
-WSL       False
-Torch     2.12.0+cu130
-CUDA      13.0
-NVML      True
-```
-
-Example WSL2 runtime:
-
-```text
-OS        Linux
-Platform  Linux-6.6.x-microsoft-standard-WSL2
-Python    3.10.12
-WSL       True
-Torch     2.13.0.dev+cu130
-CUDA      13.0
-NVML      True
-```
-
-In tested local runs on an RTX 5080, Windows and WSL2 produced matching bounded probe results with the same configuration:
-
-```text
-Probe allocated: 12288 MB
-Safe budget:     10444 MB
-Risk for 8000MB: medium
-```
-
-This makes Windows vs WSL comparison a useful future use case for `.vramcard` profiles.
-
-## Example output
-
-```text
-VRAM Suite Doctor
-Status: pre-alpha / v0.1-alpha foundation
-
-Runtime
-OS        Windows
-Python    3.12.9
-
-PyTorch / CUDA
-Torch available    True
-Torch version      2.12.0+cu130
-CUDA available     True
-Torch CUDA         13.0
-
-NVML / Driver Memory
-NVML available     True
-NVML devices       1
-
-NVML Devices
-0  NVIDIA GeForce RTX 5080  16303 MB total  14648 MB free  1654 MB used
-
-VRAMCard Memory
-Driver total MB          16303
-Driver free at scan MB   14648
-Driver used at scan MB   1654
-Process allocatable MB   12288
-Safe allocatable MB      10444
-Safety margin MB         1843
-Source                   nvml
-
-Safe Probe
-Available             True
-Backend               cuda-runtime
-Attempted MB          12288
-Allocated MB          12288
-Safe Allocatable MB   10444
-Safety Margin MB      1843
-Error                 None
-
-OOM Risk Estimate
-Required MB           8000
-Available MB          10444
-Availability Source   probe_safe_allocatable
-Remaining MB          2444
-Usage Ratio           76.60%
-Risk Level            medium
-```
-
-## `.vramcard`
-
-VRAM Suite uses its own JSON-based profile format called `.vramcard`.
-
-Example:
-
-```json
-{
-  "schema": "vramcard@0.1.0-alpha",
-  "gpu": {
-    "index": 0,
-    "name": "NVIDIA GeForce RTX 5080",
-    "total_vram_mb": 16303,
-    "compute_capability": "12.0",
-    "major": 12,
-    "minor": 0,
-    "multi_processor_count": 84,
-    "source": "nvml+torch"
-  },
-  "memory": {
-    "driver_total_mb": 16303,
-    "driver_free_at_scan_mb": 14648,
-    "driver_used_at_scan_mb": 1654,
-    "process_allocatable_mb": 12288,
-    "safe_allocatable_mb": 10444,
-    "safety_margin_mb": 1843,
-    "source": "nvml"
-  },
-  "probe": {
-    "available": true,
-    "backend": "cuda-runtime",
-    "attempted_mb": 12288,
-    "allocated_mb": 12288,
-    "safe_allocatable_mb": 10444,
-    "safety_margin_mb": 1843,
-    "error": null,
-    "notes": [
-      "Real CUDA allocation probe completed within configured safety bounds.",
-      "This is not a full VRAM exhaustion test.",
-      "Probe limit was capped at 12288 MB."
-    ]
-  },
-  "risk_estimate": {
-    "available": true,
-    "required_mb": 8000,
-    "available_mb": 10444,
-    "availability_source": "probe_safe_allocatable",
-    "remaining_mb": 2444,
-    "usage_ratio": 0.766,
-    "risk_level": "medium",
-    "reason": "Required memory is close to available memory. Based on confirmed safe probe budget."
-  }
-}
-```
-
-When `--probe` is not used, probe-related values can be `null`.
-
-When `--estimate-mb` is not used, `risk_estimate` is not included.
-
-## Python API
-
-VRAM Suite can also be used as a Python library.
-
-Basic usage:
-
-```python
-import vramsuite
-
-result = vramsuite.run_doctor()
-
-print(result["gpu"])
-print(result["memory"])
-```
-
-`run_doctor()` returns structured diagnostic data:
-
-```text
-fingerprint
-vramcard
-runtime
-torch
-nvml
-gpu
-memory
-probe
-risk_estimate
-```
-
-Run doctor with probe enabled:
-
-```python
-import vramsuite
-
-result = vramsuite.run_doctor(
-    with_probe=True,
-    probe_max_mb=1024,
-    probe_step_mb=128,
-    probe_floor_mb=2048,
-    probe_max_free_ratio=0.90,
-)
-
-print(result["probe"])
-```
-
-Run doctor with probe and OOM risk estimation:
-
-```python
-import vramsuite
-
-result = vramsuite.run_doctor(
-    with_probe=True,
-    probe_max_mb=8192,
-    probe_step_mb=256,
-    probe_floor_mb=2048,
-    probe_max_free_ratio=0.90,
-    estimate_mb=8000,
-)
-
-print(result["risk_estimate"])
-```
-
-Create a `.vramcard` directly:
-
-```python
-import vramsuite
-
-card = vramsuite.create_vramcard()
-vramsuite.save_vramcard("system.vramcard.json", card=card)
-```
-
-Direct imports are also available:
-
-```python
-from vramsuite.core.fingerprint import collect_fingerprint
-from vramsuite.core.vramcard import create_vramcard, save_vramcard
-
-fingerprint = collect_fingerprint()
-card = create_vramcard(fingerprint=fingerprint)
-
-save_vramcard("system.vramcard.json", card=card)
-```
+VRAM is about 30 times faster than the link to system RAM. That gap is why a model that does not fit in VRAM slows down so much when its weights are offloaded, and why VRAM Suite measures both.
 
 ## Architecture
 
-VRAM Suite talks to NVIDIA libraries directly through `ctypes`. It does not
-import PyTorch or Triton: importing torch would load its own CUDA/cuBLAS DLLs
-into the process and mix library versions.
+```mermaid
+flowchart LR
+    CLI["CLI<br/>vramsuite ..."] --> CORE
+    API["Python API<br/>import vramsuite"] --> CORE
+
+    subgraph CORE["core"]
+        direction TB
+        doctor["doctor / vramcard"]
+        inspect["model_inspect"]
+        processes["processes"]
+        transfer["transfer"]
+        probe["probe / risk"]
+    end
+
+    subgraph BACKENDS["backends (ctypes)"]
+        direction TB
+        nvml["nvml"]
+        cuda["cuda runtime"]
+        blas["cublas / cublaslt"]
+        win["windows_gpu"]
+    end
+
+    CORE --> BACKENDS
+    nvml --> NV["nvml.dll / libnvidia-ml.so"]
+    cuda --> RT["cudart"]
+    blas --> BL["cuBLAS / cuBLASLt"]
+    win --> OS["pdh / gdi32 / ntdll"]
+```
 
 ```text
 vramsuite/
@@ -539,8 +135,8 @@ vramsuite/
     runtime.py         OS/Python/WSL/container detection
   backends/
     native_loader.py   DLL/.so discovery (CUDA Toolkit first, venv fallback)
-    nvml.py            NVML: memory, device details, PCIe, clocks, power
-    cuda.py            CUDA runtime: memory, device attributes, malloc/memcpy
+    nvml.py            NVML: memory, device details, PCIe, clocks, power, processes
+    cuda.py            CUDA runtime: memory, device attributes, malloc/memcpy, pinned memory
     cublas.py          cuBLAS handle and SGEMM
     cublaslt/          cuBLASLt descriptors, heuristics, matmul
     windows_gpu.py     Windows PDH GPU counters, LUID -> PCI, process info
@@ -550,64 +146,59 @@ vramsuite/
     minifloat.py       Pure-Python FP8 / FP4 encode/decode
 ```
 
-Data flow:
+## Python API
 
-```text
-CLI
-  -> run_doctor()
-      -> collect_fingerprint()   runtime, NVML, CUDA runtime, cuBLAS, torch metadata
-      -> create_vramcard()       one GPU, matched across NVML and CUDA by PCI address
-      -> optional probe          cudaMalloc in bounded steps
-      -> optional compute check  cuBLAS / cuBLASLt correctness
-      -> optional OOM risk estimate
-  -> render report, optionally save .vramcard
+```python
+import vramsuite
+
+result = vramsuite.run_doctor(with_compute_check=True)
+print(result["gpu"])
+print(result["memory"])
+
+card = vramsuite.create_vramcard()
+vramsuite.save_vramcard("system.vramcard.json", card=card)
+```
+
+```python
+from vramsuite.core.model_inspect import inspect_model
+from vramsuite.core.processes import watch_gpu_processes
+from vramsuite.core.transfer import run_transfer_benchmark
+
+print(inspect_model("model.safetensors")["total_mb"])
+print(watch_gpu_processes(seconds=30)["processes"][:3])
+print(run_transfer_benchmark()["results"])
 ```
 
 ## Roadmap
 
-Done:
+- [x] Native CUDA runtime, cuBLAS and cuBLASLt backends (no PyTorch)
+- [x] Device profile in `.vramcard`, NVML <-> CUDA matching by PCI address
+- [x] Compute check layer (cuBLAS / cuBLASLt FP32, FP8)
+- [x] Model file inspection from `.safetensors` headers
+- [x] Per-process VRAM tracking (Windows PDH / Linux NVML)
+- [x] Host <-> device transfer benchmark
+- [ ] Workflow memory estimation: weights + activations + offloading cost vs the device profile
+- [ ] ComfyUI workflow analysis
+- [ ] Profile validation and schema checks
 
-- Native CUDA runtime, cuBLAS and cuBLASLt backends (no PyTorch)
-- Compute backend capability detection (device profile in `.vramcard`)
-- Experimental compute probe layer (cuBLAS / cuBLASLt FP32, FP8)
-- Model file inspection: `.safetensors` headers give exact weight sizes per dtype
-- Process-level memory tracking (Windows PDH / Linux NVML), observed from outside
-- Host <-> device transfer benchmark (PCIe bandwidth, offloading cost)
+Out of scope (separate kernel project): custom attention kernels, FP4 block-scaled GEMM, kernel autotuning.
 
-Next, in order:
+## Tested on
 
-1. Workflow memory estimation: weights + KV cache + activations vs the device profile
-2. ComfyUI workflow analysis built on 1
-3. Profile validation and schema checks
+| | |
+|---|---|
+| GPU | NVIDIA GeForce RTX 5080 (Blackwell, sm_120, 16 GB) |
+| Driver | 617.14, CUDA driver 13.4 |
+| CUDA Toolkit | 13.0 |
+| OS | Windows 11 (WDDM), WSL2 |
+| Python | 3.12 via `uv` |
 
-Out of scope for VRAM Suite (separate kernel project): custom attention kernels,
-FP4 block-scaled GEMM, kernel autotuning.
+Other NVIDIA GPUs should work; FP8 compute checks need Ada (sm_89) or newer.
 
 ## Status
 
-This project is currently in early pre-alpha.
+Pre-alpha. The CLI, `.vramcard` format and Python API can still change between versions.
 
-The current version is focused on building a clean foundation:
+## License
 
-- stable CLI
-- clean module separation
-- `.vramcard` format
-- NVML memory reader
-- public Python API
-- bounded CUDA allocation probe
-- probe safety clamp
-- basic OOM risk estimation
-- risk availability source reporting
-- Windows/WSL runtime visibility
-
-The current version already provides a working diagnostic pipeline:
-
-```text
-NVML -> fingerprint -> vramcard -> optional probe -> optional risk estimate -> CLI/API output
-```
-
-The next major step is workflow-level profiling and memory prediction.
-
-## Author
-
-Created by **k1n0F**.
+[MIT](LICENSE) © k1n0F
