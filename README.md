@@ -27,6 +27,10 @@ VRAM Suite currently provides:
 - Basic OOM risk estimation through `--estimate-mb`
 - OOM risk availability source reporting
 - Windows and WSL-friendly runtime detection
+- Model file inspection (`vramsuite inspect`): exact weight sizes from `.safetensors` headers
+- Per-process VRAM tracking (`vramsuite processes`), with peak tracking in `--watch` mode
+
+Detailed documentation for every feature is in [docs/](docs/README.md).
 
 The allocation probe is disabled by default and only runs when explicitly requested with `--probe`.
 
@@ -526,6 +530,8 @@ vramsuite/
     vramcard.py        .vramcard creation, GPU matching (NVML <-> CUDA by PCI)
     probe.py           Bounded allocation probe (cudaMalloc)
     risk.py            Basic OOM risk estimation
+    model_inspect.py   .safetensors header reader (exact weight sizes)
+    processes.py       Per-process VRAM usage and peaks
     compare.py         .vramcard comparison
     reports.py         Rich terminal report rendering
     runtime.py         OS/Python/WSL/container detection
@@ -535,6 +541,7 @@ vramsuite/
     cuda.py            CUDA runtime: memory, device attributes, malloc/memcpy
     cublas.py          cuBLAS handle and SGEMM
     cublaslt/          cuBLASLt descriptors, heuristics, matmul
+    windows_gpu.py     Windows PDH GPU counters, LUID -> PCI, process info
   compute/
     compute_math.py    cuBLAS SGEMM sanity check
     cublaslt_math.py   cuBLASLt FP32 / FP8 GEMM checks
@@ -561,15 +568,15 @@ Done:
 - Native CUDA runtime, cuBLAS and cuBLASLt backends (no PyTorch)
 - Compute backend capability detection (device profile in `.vramcard`)
 - Experimental compute probe layer (cuBLAS / cuBLASLt FP32, FP8)
+- Model file inspection: `.safetensors` headers give exact weight sizes per dtype
+- Process-level memory tracking (Windows PDH / Linux NVML), observed from outside
 
 Next, in order:
 
-1. Model file inspection: read `.safetensors` headers to get exact weight sizes per dtype
-2. Process-level memory tracking through NVML (observe ComfyUI or any process from outside)
-3. Host <-> device transfer benchmark (PCIe bandwidth, offloading cost)
-4. Workflow memory estimation: weights + KV cache + activations vs the device profile
-5. ComfyUI workflow analysis built on 1-4
-6. Profile validation and schema checks
+1. Host <-> device transfer benchmark (PCIe bandwidth, offloading cost)
+2. Workflow memory estimation: weights + KV cache + activations vs the device profile
+3. ComfyUI workflow analysis built on 1-2
+4. Profile validation and schema checks
 
 Out of scope for VRAM Suite (separate kernel project): custom attention kernels,
 FP4 block-scaled GEMM, kernel autotuning.
